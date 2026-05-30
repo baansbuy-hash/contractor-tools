@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>เครื่องมือรับเหมาก่อสร้าง</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e1419;
+    --surface: #161d27;
+    --card: #1c2635;
+    --border: #2a3a4e;
+    --blue: #2196f3;
+    --gold: #f0b429;
+    --green: #34d399;
+    --red: #f87171;
+    --text: #e8edf2;
+    --dim: #7a8fa8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Sarabun', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── animated bg grid ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(33,150,243,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(33,150,243,.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .hero {
+    position: relative;
+    z-index: 1;
+    padding: 72px 24px 48px;
+    text-align: center;
+  }
+  .hero-badge {
+    display: inline-block;
+    background: rgba(33,150,243,.15);
+    border: 1px solid rgba(33,150,243,.4);
+    color: var(--blue);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .72rem;
+    letter-spacing: .12em;
+    padding: 5px 14px;
+    border-radius: 20px;
+    margin-bottom: 22px;
+    animation: fadeUp .6s both;
+  }
+  h1 {
+    font-size: clamp(1.8rem, 5vw, 2.8rem);
+    font-weight: 800;
+    line-height: 1.2;
+    animation: fadeUp .6s .1s both;
+  }
+  h1 span { color: var(--gold); }
+  .hero-sub {
+    margin-top: 14px;
+    color: var(--dim);
+    font-size: 1rem;
+    max-width: 520px;
+    margin-inline: auto;
+    animation: fadeUp .6s .2s both;
+  }
+
+  /* ── stats bar ── */
+  .stats {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    flex-wrap: wrap;
+    margin: 36px auto 0;
+    max-width: 560px;
+    animation: fadeUp .6s .3s both;
+  }
+  .stat { text-align: center; }
+  .stat-num {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--gold);
+  }
+  .stat-label { font-size: .75rem; color: var(--dim); margin-top: 2px; }
+
+  /* ── divider ── */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 48px auto;
+    max-width: 700px;
+  }
+
+  /* ── tool cards ── */
+  .tools {
+    position: relative;
+    z-index: 1;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 20px 80px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 22px;
+  }
+  .tool-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px 28px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    text-decoration: none;
+    color: inherit;
+    transition: transform .2s, border-color .2s, box-shadow .2s;
+    animation: fadeUp .6s both;
+    position: relative;
+    overflow: hidden;
+  }
+  .tool-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 14px 14px 0 0;
+  }
+  .tool-card.card-a::before { background: linear-gradient(90deg, var(--blue), #64b5f6); }
+  .tool-card.card-b::before { background: linear-gradient(90deg, var(--gold), #f6a821); }
+  .tool-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255,255,255,.15);
+    box-shadow: 0 12px 40px rgba(0,0,0,.4);
+  }
+  .card-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .card-icon {
+    font-size: 2rem;
+    line-height: 1;
+    flex-shrink: 0;
+    background: rgba(255,255,255,.05);
+    padding: 10px;
+    border-radius: 10px;
+  }
+  .card-meta { flex: 1; }
+  .card-tag {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .62rem;
+    letter-spacing: .1em;
+    color: var(--dim);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+  .card-title { font-size: 1.1rem; font-weight: 800; line-height: 1.3; }
+  .card-desc { font-size: .83rem; color: var(--dim); line-height: 1.65; }
+
+  /* feature chips */
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    background: rgba(255,255,255,.06);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-size: .68rem;
+    font-family: 'Share Tech Mono', monospace;
+    padding: 2px 8px;
+    color: var(--dim);
+  }
+  .chip.hi { color: var(--green); border-color: rgba(52,211,153,.3); background: rgba(52,211,153,.07); }
+
+  .card-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: auto;
+    font-size: .82rem;
+    font-weight: 700;
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    transition: opacity .15s;
+    align-self: flex-start;
+  }
+  .card-a .card-cta { background: var(--blue); color: #fff; }
+  .card-b .card-cta { background: var(--gold); color: #0e1419; }
+  .card-cta:hover { opacity: .85; }
+
+  /* ── how to use ── */
+  .how-wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 0 20px 80px;
+  }
+  .how-title {
+    text-align: center;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--dim);
+    letter-spacing: .08em;
+    font-family: 'Share Tech Mono', monospace;
+    margin-bottom: 28px;
+  }
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+  }
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 16px;
+    text-align: center;
+  }
+  .step-num {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .65rem;
+    color: var(--gold);
+    letter-spacing: .1em;
+    margin-bottom: 8px;
+  }
+  .step-icon { font-size: 1.5rem; margin-bottom: 8px; }
+  .step-text { font-size: .8rem; color: var(--dim); line-height: 1.5; }
+
+  /* ── footer ── */
+  .footer {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 28px 20px 48px;
+    font-size: .75rem;
+    color: var(--dim);
+    border-top: 1px solid var(--border);
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: .06em;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 480px) {
+    .tools { grid-template-columns: 1fr; }
+    .steps { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-badge">🔧 CONTRACTOR TOOLS v2.0</div>
+  <h1>เครื่องมือ<span>รับเหมา</span><br>ก่อสร้าง-รีโนเวท</h1>
+  <p class="hero-sub">ถอดราคา BOQ · เสนอราคา · ทำสัญญา · เบิกงวด<br>ใช้ฟรี ทำงานบน Browser ไม่ต้องติดตั้ง</p>
+  <div class="stats">
+    <div class="stat"><div class="stat-num">17</div><div class="stat-label">แท็บเอกสาร</div></div>
+    <div class="stat"><div class="stat-num">12</div><div class="stat-label">ประเภทงาน</div></div>
+    <div class="stat"><div class="stat-num">80+</div><div class="stat-label">รายการวัสดุ</div></div>
+    <div class="stat"><div class="stat-num">100%</div><div class="stat-label">ออฟไลน์</div></div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<div class="tools">
+
+  <!-- TOOL A -->
+  <a href="renovate-estimator.html" class="tool-card card-a" style="animation-delay:.1s">
+    <div class="card-top">
+      <div class="card-icon">🔧</div>
+      <div class="card-meta">
+        <div class="card-tag">TOOL 01 · งานรีโนเวท</div>
+        <div class="card-title">เครื่องมือถอดราคา<br>งานรีโนเวทบ้าน</div>
+      </div>
+    </div>
+    <div class="card-desc">เลือกงานได้ 12 ประเภท — โรงจอดรถ ต่อเติมหลัง กันสาด ปูพื้น ห้องน้ำ ฝ้า กั้นห้อง รั้ว ประตู ไฟฟ้า ทาสี รวมราคาอัตโนมัติ พร้อมเอกสารครบชุด</div>
+    <div class="chip-row">
+      <span class="chip hi">BOQ แยกวัสดุ-แรง</span>
+      <span class="chip hi">ครัว/SPC/ห้องน้ำ</span>
+      <span class="chip">ใบเสนอราคา</span>
+      <span class="chip">สัญญาจ้าง</span>
+      <span class="chip">เบิกงวด</span>
+      <span class="chip">🔍 ค้นราคาร้านค้า</span>
+    </div>
+    <span class="card-cta">เปิดใช้งาน →</span>
+  </a>
+
+  <!-- TOOL B -->
+  <a href="townhouse-parametric.html" class="tool-card card-b" style="animation-delay:.2s">
+    <div class="card-top">
+      <div class="card-icon">🏠</div>
+      <div class="card-meta">
+        <div class="card-tag">TOOL 02 · งานต่อเติม</div>
+        <div class="card-title">แบบก่อสร้างพร้อมราคา<br>ต่อเติมทาวน์เฮ้าส์</div>
+      </div>
+    </div>
+    <div class="card-desc">วาดแบบก่อสร้าง SVG อัตโนมัติ 6 แผ่น ปรับขนาดด้วย slider — พร้อม BOQ ละเอียด Factor F สัญญา Timeline และเอกสารธุรกิจครบวงจร</div>
+    <div class="chip-row">
+      <span class="chip hi">แบบ SVG 6 แผ่น</span>
+      <span class="chip hi">BOQ มืออาชีพ + Factor F</span>
+      <span class="chip">63 รายการวัสดุ</span>
+      <span class="chip">Timeline Gantt</span>
+      <span class="chip">Spec วัสดุ</span>
+      <span class="chip">เปรียบเทียบราคา</span>
+    </div>
+    <span class="card-cta" style="background:var(--gold);color:#0e1419">เปิดใช้งาน →</span>
+  </a>
+
+</div>
+
+<div class="divider"></div>
+
+<div class="how-wrap">
+  <div class="how-title">// วิธีใช้งาน</div>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">STEP 01</div>
+      <div class="step-icon">🎯</div>
+      <div class="step-text">เลือกเครื่องมือที่ตรงกับงาน</div>
+    </div>
+    <div class="step">
+      <div class="step-num">STEP 02</div>
+      <div class="step-icon">📐</div>
+      <div class="step-text">กรอกขนาดและเลือกประเภทงาน</div>
+    </div>
+    <div class="step">
+      <div class="step-num">STEP 03</div>
+      <div class="step-icon">✏️</div>
+      <div class="step-text">ปรับราคาวัสดุ-ค่าแรงตามพื้นที่ของตัวเอง</div>
+    </div>
+    <div class="step">
+      <div class="step-num">STEP 04</div>
+      <div class="step-icon">💾</div>
+      <div class="step-text">บันทึกโปรเจกต์ (.json) ไว้ใช้ต่อ</div>
+    </div>
+    <div class="step">
+      <div class="step-num">STEP 05</div>
+      <div class="step-icon">🖨️</div>
+      <div class="step-text">พิมพ์ PDF ส่งลูกค้าได้เลย</div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  CONTRACTOR TOOLS · ทำงานบน Browser · ไม่เก็บข้อมูลบน Server · ข้อมูลอยู่ในเครื่องคุณเท่านั้น
+</div>
+
+</body>
+</html>
