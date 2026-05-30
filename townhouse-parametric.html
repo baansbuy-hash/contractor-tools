@@ -1,0 +1,3136 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>แบบก่อสร้างต่อเติมทาวน์เฮ้าส์ (Parametric)</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f0e8; --paper: #fdf8f0; --ink: #1a1a2e;
+    --blue: #1e3a5f; --red: #c0392b; --dim: #6b7c93;
+    --grid: #b8c5d0; --accent: #d4a853; --green: #2d7a4f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); font-family: 'Sarabun', sans-serif; color: var(--ink); }
+
+  /* ── Control Panel ── */
+  .control-panel {
+    background: var(--blue);
+    color: white;
+    padding: 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+  }
+  .panel-header h1 { font-size: 1rem; font-weight: 700; letter-spacing: 0.04em; }
+  .panel-toggle {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Sarabun', sans-serif;
+    font-size: 0.8rem;
+  }
+  .panel-body {
+    padding: 14px 20px 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px 24px;
+  }
+  .panel-body.collapsed { display: none; }
+
+  .ctrl-group { display: flex; flex-direction: column; gap: 4px; }
+  .ctrl-label {
+    font-size: 0.72rem;
+    color: var(--accent);
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 0.05em;
+  }
+  .ctrl-row { display: flex; align-items: center; gap: 8px; }
+  .ctrl-row input[type=range] {
+    flex: 1;
+    accent-color: var(--accent);
+    cursor: pointer;
+    height: 4px;
+  }
+  .ctrl-val {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: bold;
+    color: white;
+    min-width: 52px;
+    text-align: right;
+    background: rgba(255,255,255,0.1);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .section-divider {
+    border: none;
+    border-top: 1px solid rgba(255,255,255,0.2);
+    margin: 4px 0;
+    grid-column: 1 / -1;
+  }
+  .section-label {
+    font-size: 0.68rem;
+    color: rgba(255,255,255,0.5);
+    grid-column: 1 / -1;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 4px;
+  }
+
+  .area-badge {
+    background: var(--accent);
+    color: var(--blue);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: bold;
+    padding: 6px 14px;
+    border-radius: 4px;
+    white-space: nowrap;
+    align-self: flex-end;
+  }
+
+  /* ── Drawing area ── */
+  .page-wrapper { max-width: 980px; margin: 0 auto; padding: 16px; }
+
+  .tab-nav { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 0; }
+  .tab-btn {
+    padding: 7px 14px;
+    background: #d6cfc2;
+    border: none;
+    cursor: pointer;
+    font-family: 'Sarabun', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--dim);
+    border-radius: 4px 4px 0 0;
+    transition: all 0.15s;
+  }
+  .tab-btn.active { background: var(--paper); color: var(--blue); border-bottom: 3px solid var(--accent); }
+  .tab-btn:hover:not(.active) { background: #c8c0b0; }
+
+  .drawing-sheet {
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    display: none;
+    position: relative;
+  }
+  .drawing-sheet.active { display: block; }
+
+  .grid-bg {
+    position: absolute; inset: 0;
+    background-image: linear-gradient(var(--grid) 1px,transparent 1px),
+                      linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size: 20px 20px;
+    opacity: 0.25;
+    pointer-events: none;
+  }
+  .canvas-area { padding: 16px 20px; position: relative; min-height: 440px; }
+  svg { width: 100%; height: auto; display: block; position: relative; }
+
+  .stamp {
+    position: absolute; right: 20px; top: 14px;
+    width: 72px; height: 72px;
+    border: 3px solid var(--red); border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: var(--red); font-family: 'Share Tech Mono', monospace;
+    font-size: 0.52rem; font-weight: bold; text-align: center;
+    opacity: 0.5; transform: rotate(-15deg); line-height: 1.4;
+    pointer-events: none;
+  }
+
+  .title-block {
+    border-top: 2px solid var(--ink);
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 150px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.68rem;
+  }
+  .tb-cell { border-right: 1px solid var(--ink); padding: 5px 10px; line-height: 1.6; }
+  .tb-cell:last-child { border-right: none; }
+  .tb-label { color: var(--dim); font-size: 0.62rem; display: block; }
+  .tb-value { color: var(--ink); font-weight: bold; }
+  .tb-title { font-size: 0.85rem; color: var(--blue); }
+
+  .notes-panel {
+    background: #fff9ee;
+    border: 1px solid var(--accent); border-left: 4px solid var(--accent);
+    padding: 10px 16px; margin: 12px 18px;
+    font-size: 0.78rem; line-height: 1.9;
+  }
+  .notes-panel h4 { color: var(--blue); font-size: 0.82rem; margin-bottom: 4px; }
+  .notes-panel li { margin-left: 18px; }
+  .notes-panel .dyn { color: var(--red); font-weight: 600; }
+
+  @media (max-width: 600px) {
+    .title-block { grid-template-columns: 1fr 1fr; }
+    .panel-body { grid-template-columns: 1fr 1fr; }
+  }
+
+  /* ── BOQ Table ── */
+  .boq-wrap { font-family: 'Sarabun', sans-serif; }
+  .boq-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; }
+  .boq-title { font-size:1.1rem; font-weight:700; color:var(--blue); }
+  .boq-meta { font-family:'Share Tech Mono',monospace; font-size:0.72rem; color:var(--dim); text-align:right; line-height:1.9; }
+  .boq-table { width:100%; border-collapse:collapse; font-size:0.8rem; margin-bottom:12px; }
+  .boq-table th { background:var(--blue); color:white; padding:7px 10px; text-align:left; font-size:0.75rem; font-family:'Share Tech Mono',monospace; }
+  .boq-table th.num { text-align:right; }
+  .boq-table td { padding:6px 10px; border-bottom:1px solid #ddd8cc; vertical-align:top; }
+  .boq-table td.num { text-align:right; font-family:'Share Tech Mono',monospace; font-size:0.78rem; }
+  .boq-table tr.section-row td { background:#eaf0f8; font-weight:700; color:var(--blue); padding:5px 10px; font-size:0.78rem; letter-spacing:0.04em; }
+  .boq-table tr:hover:not(.section-row):not(.total-row) td { background:#f5f0e8; }
+  .boq-table tr.total-row td { background:var(--blue); color:white; font-weight:700; font-family:'Share Tech Mono',monospace; }
+  .boq-table tr.subtotal-row td { background:#d4edda; font-weight:600; color:var(--green); font-family:'Share Tech Mono',monospace; }
+  .boq-table tr.overhead-row td { background:#fff3cd; font-style:italic; }
+  .boq-summary { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin:16px 0; }  .boq-card { background:white; border:1px solid #ddd; border-left:4px solid var(--blue); padding:10px 14px; border-radius:2px; }
+  .boq-card.red { border-left-color:var(--red); }
+  .boq-card.green { border-left-color:var(--green); }
+  .boq-card-label { font-size:0.7rem; color:var(--dim); font-family:'Share Tech Mono',monospace; }
+  .boq-card-val { font-size:1.1rem; font-weight:700; color:var(--ink); margin-top:2px; }
+  .boq-card-sub { font-size:0.72rem; color:var(--dim); }
+  .boq-disclaimer { background:#fff3cd; border-left:4px solid var(--accent); padding:8px 12px; font-size:0.75rem; color:#7a5c00; margin-top:8px; line-height:1.7; }
+  .boq-print-btn { background:var(--blue); color:white; border:none; padding:8px 20px; border-radius:4px; cursor:pointer; font-family:'Sarabun',sans-serif; font-size:0.85rem; float:right; margin-bottom:8px; }
+  .boq-print-btn:hover { background:#152d4a; }
+  /* IO toolbar buttons */
+  .io-btn { background:#fff; border:1px solid var(--blue); color:var(--blue); padding:6px 14px; border-radius:5px; cursor:pointer; font-family:'Sarabun',sans-serif; font-size:0.78rem; font-weight:600; transition:all .15s; }
+  .io-btn:hover { background:var(--blue); color:white; }
+  /* Generic report styles (payment, spec, compare, timeline) */
+  .rpt-wrap { font-family:'Sarabun',sans-serif; }
+  .rpt-title { font-size:1.05rem; font-weight:700; color:var(--blue); margin-bottom:4px; }
+  .rpt-sub { font-size:0.8rem; color:var(--dim); margin-bottom:14px; }
+  .rpt-table { width:100%; border-collapse:collapse; font-size:0.8rem; margin-bottom:14px; }
+  .rpt-table th { background:var(--blue); color:white; padding:8px 10px; text-align:left; font-size:0.75rem; font-family:'Share Tech Mono',monospace; }
+  .rpt-table th.num { text-align:right; }
+  .rpt-table td { padding:7px 10px; border-bottom:1px solid #ddd8cc; vertical-align:top; }
+  .rpt-table td.num { text-align:right; font-family:'Share Tech Mono',monospace; }
+  .rpt-table tr:hover td { background:#f5f0e8; }
+  .rpt-table tr.total-row td { background:var(--blue); color:white; font-weight:700; font-family:'Share Tech Mono',monospace; }
+  .rpt-table [contenteditable]:hover { background:#fff8dc; box-shadow:inset 0 -2px 0 var(--accent); border-radius:2px; }
+  .rpt-table [contenteditable]:focus { background:#fffbe6; box-shadow:inset 0 0 0 2px var(--accent); border-radius:2px; outline:none; }
+  /* Signature block */
+  .sig-block { display:grid; grid-template-columns:1fr 1fr; gap:40px; margin-top:30px; padding-top:20px; }
+  .sig-box { text-align:center; }
+  .sig-line { border-top:1px dotted #555; margin:40px 20px 8px; }
+  .sig-name { font-size:0.85rem; font-weight:600; }
+  .sig-role { font-size:0.75rem; color:var(--dim); }
+  /* Gantt */
+  .gantt-row { display:grid; grid-template-columns:160px 1fr; align-items:center; border-bottom:1px solid #eee; min-height:30px; }
+  .gantt-label { font-size:0.76rem; padding:4px 8px; }
+  .gantt-track { position:relative; height:22px; background:#f0ece2; border-radius:3px; }
+  .gantt-bar { position:absolute; height:100%; border-radius:3px; display:flex; align-items:center; padding-left:6px; font-size:0.68rem; color:white; white-space:nowrap; overflow:hidden; }
+  /* Compare cards */
+  .cmp-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin:14px 0; }
+  .cmp-card { border:2px solid #ddd; border-radius:8px; padding:16px; background:white; }
+  .cmp-card.best { border-color:var(--green); box-shadow:0 4px 16px rgba(45,122,79,0.15); }
+  .cmp-card h3 { font-size:0.95rem; color:var(--blue); margin-bottom:6px; }
+  .cmp-price { font-size:1.4rem; font-weight:800; color:var(--ink); margin:8px 0; }
+  .cmp-tag { display:inline-block; font-size:0.68rem; padding:2px 8px; border-radius:10px; background:var(--green); color:white; margin-bottom:8px; }
+  .cmp-list { font-size:0.76rem; line-height:1.9; list-style:none; }
+  .cmp-list li { padding-left:18px; position:relative; }
+  .cmp-list li.pro::before { content:'✓'; position:absolute; left:0; color:var(--green); font-weight:700; }
+  .cmp-list li.con::before { content:'✕'; position:absolute; left:0; color:var(--red); }
+
+  /* Professional BOQ table */
+  .pro-table { font-size:0.76rem; }
+  .pro-table th { background:#1e3a5f; font-size:0.7rem; padding:5px 6px; }
+  .pro-table td { padding:4px 6px; }
+  .pro-table .pro-no { font-family:'Share Tech Mono',monospace; font-size:0.7rem; color:var(--dim); text-align:center; }
+  .pro-table .pro-desc { line-height:1.35; }
+  .pro-table .pro-note { font-size:0.66rem; color:var(--dim); font-style:italic; }
+  .pro-table .pro-unit { text-align:center; font-size:0.72rem; }
+  .pro-table .pro-mat { color:#1e6fa0; }
+  .pro-table .pro-lbr { color:#b8860b; }
+  .pro-table tr.pro-sec td { background:#eaf0f8; font-weight:700; color:var(--blue); font-size:0.76rem; padding:5px 8px; }
+  .pro-table tr.pro-subtotal td { background:#f5f3ec; font-weight:600; font-family:'Share Tech Mono',monospace; font-size:0.72rem; border-top:1px solid #ccc; }
+  .pro-table tr.pro-grand td { background:#d4edda; font-weight:700; font-family:'Share Tech Mono',monospace; }
+  .pro-table tr.pro-add td { background:#fff8e8; font-style:italic; font-family:'Share Tech Mono',monospace; }
+  .pro-table tr.pro-total td { background:#1e3a5f; color:white; font-weight:700; font-family:'Share Tech Mono',monospace; }
+  .pro-table tr:hover:not(.pro-sec):not(.pro-subtotal):not(.pro-grand):not(.pro-add):not(.pro-total) td { background:#fdfbf5; }
+  /* Horizontal scroll wrapper for wide tables on mobile */
+  .pro-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid #e0dccf; border-radius:4px; }
+  .pro-scroll .pro-table { min-width:680px; margin-bottom:0; }
+  .pro-scroll-hint { display:none; text-align:center; font-size:0.7rem; color:var(--accent); padding:4px 0 10px; font-family:'Share Tech Mono',monospace; }
+  @media (max-width:760px){ .pro-scroll-hint{ display:block; } }
+  /* Make the main BOQ editable table scrollable too */
+  .boq-table { min-width:0; }
+  @media (max-width:760px){
+    .boq-content-scroll, #boq-content > .boq-wrap { overflow-x:visible; }
+    .boq-table { display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; white-space:nowrap; }
+  }
+
+  /* ── Print: show only active tab, hide UI chrome ── */
+  @media print {
+    @page { size: A4 landscape; margin: 8mm; }
+    .control-panel, .tab-nav, .boq-print-btn, .io-btn,
+    [onclick*="boqAddRow"], [onclick*="boqDel"], [onclick*="splice"], [onclick*="openPriceSearch"],
+    [title="ลบหมวด"], [title="ลบรายการ"], [title="ค้นราคาวัสดุจากร้านค้า"] { display:none !important; }
+    body { background:white; }
+    .page-wrapper { max-width:100%; padding:0; }
+    .drawing-sheet { display:none !important; border:none; }
+    .drawing-sheet.active { display:block !important; }
+    .stamp { opacity:0.3; }
+    .grid-bg { display:none; }
+    .boq-table [contenteditable], .rpt-table [contenteditable] { box-shadow:none !important; background:transparent !important; }
+  }
+  /* editable cell hints */
+  .boq-table [contenteditable]:hover { background:#fff8dc!important; box-shadow:inset 0 -2px 0 var(--accent); border-radius:2px; }
+  .boq-table [contenteditable]:focus { background:#fffbe6!important; box-shadow:inset 0 0 0 2px var(--accent); border-radius:2px; }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════ CONTROL PANEL ════════════════════════════════ -->
+<div class="control-panel">
+  <div class="panel-header">
+    <h1>⚙️ ปรับขนาดแบบก่อสร้าง — ทาวน์เฮ้าส์ต่อเติมด้านข้าง</h1>
+    <button class="panel-toggle" onclick="togglePanel()">▲ ซ่อน/แสดง</button>
+  </div>
+  <div class="panel-body" id="panelBody">
+
+    <div class="section-label">📐 ขนาดบ้านเดิม (EXISTING HOUSE)</div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">กว้างบ้านเดิม (ม.)</span>
+      <div class="ctrl-row">
+        <input type="range" id="hW" min="4" max="10" step="0.5" value="6" oninput="update()">
+        <span class="ctrl-val" id="hW_v">6.00 ม.</span>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">ยาวบ้านเดิม (ม.)</span>
+      <div class="ctrl-row">
+        <input type="range" id="hL" min="8" max="20" step="0.5" value="14" oninput="update()">
+        <span class="ctrl-val" id="hL_v">14.00 ม.</span>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">ความสูงบ้านเดิม (ม.)</span>
+      <div class="ctrl-row">
+        <input type="range" id="hH" min="2.5" max="4" step="0.1" value="3" oninput="update()">
+        <span class="ctrl-val" id="hH_v">3.00 ม.</span>
+      </div>
+    </div>
+
+    <div class="section-label">🟩 ขนาดส่วนต่อเติม (NEW EXTENSION)</div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">กว้างต่อเติม (ม.)</span>
+      <div class="ctrl-row">
+        <input type="range" id="eW" min="1.5" max="6" step="0.5" value="4" oninput="update()">
+        <span class="ctrl-val" id="eW_v">4.00 ม.</span>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">ยาวต่อเติม (ม.)</span>
+      <div class="ctrl-row">
+        <input type="range" id="eL" min="2" max="14" step="0.5" value="7" oninput="update()">
+        <span class="ctrl-val" id="eL_v">7.00 ม.</span>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">ความสูงต่อเติม (ม.)</span>
+      <div class="ctrl-row">
+        <input type="range" id="eH" min="2.2" max="3.5" step="0.1" value="2.7" oninput="update()">
+        <span class="ctrl-val" id="eH_v">2.70 ม.</span>
+      </div>
+    </div>
+
+    <div class="section-label">🏗️ ขนาดโครงสร้าง (STRUCTURAL)</div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">ขนาดเสา (ซม.)</span>
+      <div class="ctrl-row">
+        <input type="range" id="colSize" min="15" max="30" step="1" value="20" oninput="update()">
+        <span class="ctrl-val" id="colSize_v">20 ซม.</span>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">ความลึกฐานราก (ม.)</span>
+      <div class="ctrl-row">
+        <input type="range" id="footD" min="0.3" max="1.2" step="0.1" value="0.5" oninput="update()">
+        <span class="ctrl-val" id="footD_v">0.50 ม.</span>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">ขนาดฐานราก (ม.)</span>
+      <div class="ctrl-row">
+        <input type="range" id="footW" min="0.4" max="1.2" step="0.1" value="0.6" oninput="update()">
+        <span class="ctrl-val" id="footW_v">0.60 ม.</span>
+      </div>
+    </div>
+
+    <div class="section-label">🪨 เสาเข็ม (PILE)</div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">ประเภทเสาเข็ม</span>
+      <div class="ctrl-row">
+        <select id="pileType" onchange="update()" style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:white;padding:4px 8px;border-radius:3px;font-family:'Sarabun',sans-serif;font-size:0.82rem;">
+          <option value="spun">เสาเข็มสปัน (Spun Pile)</option>
+          <option value="square">เสาเข็มสี่เหลี่ยม (Square Pile)</option>
+          <option value="bored">เสาเข็มเจาะ (Bored Pile)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">ขนาดเส้นผ่าศูนย์กลาง/หน้าตัด (ซม.)</span>
+      <div class="ctrl-row">
+        <input type="range" id="pileDia" min="20" max="60" step="5" value="30" oninput="update()">
+        <span class="ctrl-val" id="pileDia_v">30 ซม.</span>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">ความยาวเสาเข็ม (ม.)</span>
+      <div class="ctrl-row">
+        <input type="range" id="pileLen" min="3" max="21" step="1.5" value="6" oninput="update()">
+        <span class="ctrl-val" id="pileLen_v">6.0 ม.</span>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">จำนวนเสาเข็มต่อฐาน</span>
+      <div class="ctrl-row">
+        <input type="range" id="pileCount" min="1" max="4" step="1" value="1" oninput="update()">
+        <span class="ctrl-val" id="pileCount_v">1 ต้น</span>
+      </div>
+    </div>
+
+    <div class="section-label">📋 ข้อมูลโครงการ (PROJECT INFO)</div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">ชื่อโครงการ</span>
+      <div class="ctrl-row">
+        <input type="text" id="projName" value="ต่อเติมทาวน์เฮ้าส์" oninput="update()"
+          style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:white;padding:4px 8px;border-radius:3px;font-family:'Sarabun',sans-serif;font-size:0.82rem;">
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">เจ้าของโครงการ</span>
+      <div class="ctrl-row">
+        <input type="text" id="projOwner" value="นาย/นาง .................." oninput="update()"
+          style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:white;padding:4px 8px;border-radius:3px;font-family:'Sarabun',sans-serif;font-size:0.82rem;">
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">วันที่แบบ (ปี พ.ศ.)</span>
+      <div class="ctrl-row">
+        <input type="date" id="projDate" oninput="update()"
+          style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:white;padding:4px 8px;border-radius:3px;font-family:'Share Tech Mono',monospace;font-size:0.82rem;">
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">เลขที่แบบ (Rev.)</span>
+      <div class="ctrl-row">
+        <input type="text" id="projRev" value="R0" oninput="update()"
+          style="width:60px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:white;padding:4px 8px;border-radius:3px;font-family:'Share Tech Mono',monospace;font-size:0.82rem;">
+        <span class="ctrl-label" style="margin-left:12px;">ราคา Overhead/Profit (%)</span>
+        <input type="range" id="overhead" min="5" max="30" step="1" value="15" oninput="overheadOverride.pctVal=null;overheadOverride.mode='pct';update()" style="flex:1;accent-color:var(--accent);">
+        <span class="ctrl-val" id="overhead_v">15%</span>
+      </div>
+    </div>
+
+    <div class="section-label">💰 ราคาต่อหน่วย BOQ (บาท) — ปรับตามท้องถิ่น</div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">งานดิน/ฐานราก (บ./ตร.ม.)</span>
+      <div class="ctrl-row">
+        <input type="range" id="rEarth" min="500" max="3000" step="100" value="1200" oninput="update()">
+        <span class="ctrl-val" id="rEarth_v">1,200</span>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">งานคอนกรีต+เหล็ก (บ./ตร.ม.)</span>
+      <div class="ctrl-row">
+        <input type="range" id="rConc" min="2000" max="8000" step="200" value="4000" oninput="update()">
+        <span class="ctrl-val" id="rConc_v">4,000</span>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">งานก่ออิฐฉาบปูน (บ./ตร.ม.)</span>
+      <div class="ctrl-row">
+        <input type="range" id="rMasonry" min="500" max="2500" step="100" value="1000" oninput="update()">
+        <span class="ctrl-val" id="rMasonry_v">1,000</span>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">งานหลังคา (บ./ตร.ม.)</span>
+      <div class="ctrl-row">
+        <input type="range" id="rRoof" min="500" max="3000" step="100" value="1200" oninput="update()">
+        <span class="ctrl-val" id="rRoof_v">1,200</span>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">งานพื้น/กระเบื้อง (บ./ตร.ม.)</span>
+      <div class="ctrl-row">
+        <input type="range" id="rFloor" min="300" max="2000" step="100" value="700" oninput="update()">
+        <span class="ctrl-val" id="rFloor_v">700</span>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">งานไฟฟ้า (บ./ตร.ม.)</span>
+      <div class="ctrl-row">
+        <input type="range" id="rElec" min="200" max="1500" step="100" value="600" oninput="update()">
+        <span class="ctrl-val" id="rElec_v">600</span>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">เสาเข็ม (บ./ต้น)</span>
+      <div class="ctrl-row">
+        <input type="range" id="rPile" min="2000" max="30000" step="1000" value="8000" oninput="update()">
+        <span class="ctrl-val" id="rPile_v">8,000</span>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">เผื่อความผิดพลาด Contingency (%)</span>
+      <div class="ctrl-row">
+        <input type="range" id="conting" min="0" max="20" step="1" value="5" oninput="contingOverride.pctVal=null;contingOverride.mode='pct';update()">
+        <span class="ctrl-val" id="conting_v">5%</span>
+      </div>
+    </div>
+
+    <div class="section-label">✍️ ลายเซ็นเอกสาร (SIGNATURE)</div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">ชื่อผู้รับเหมา</span>
+      <div class="ctrl-row">
+        <input type="text" id="sigContractor" value="" placeholder="ชื่อ-นามสกุล ผู้รับเหมา" oninput="update()"
+          style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:white;padding:4px 8px;border-radius:3px;font-family:'Sarabun',sans-serif;font-size:0.82rem;">
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">บริษัท/ร้าน</span>
+      <div class="ctrl-row">
+        <input type="text" id="sigCompany" value="" placeholder="ชื่อบริษัท/ร้าน + เบอร์โทร" oninput="update()"
+          style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:white;padding:4px 8px;border-radius:3px;font-family:'Sarabun',sans-serif;font-size:0.82rem;">
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">ระยะเวลาก่อสร้างรวม (วัน)</span>
+      <div class="ctrl-row">
+        <input type="range" id="totalDays" min="20" max="120" step="5" value="45" oninput="update()">
+        <span class="ctrl-val" id="totalDays_v">45 วัน</span>
+      </div>
+    </div>
+
+    <div class="section-label">🏢 ข้อมูลผู้รับเหมา (สำหรับเอกสาร)</div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">ที่อยู่บริษัท/ร้าน</span>
+      <div class="ctrl-row">
+        <input type="text" id="coAddr" value="" placeholder="ที่อยู่สำหรับออกเอกสาร" oninput="update()"
+          style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:white;padding:4px 8px;border-radius:3px;font-family:'Sarabun',sans-serif;font-size:0.82rem;">
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">เลขผู้เสียภาษี (13 หลัก)</span>
+      <div class="ctrl-row">
+        <input type="text" id="coTax" value="" placeholder="0-0000-00000-00-0" oninput="update()"
+          style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:white;padding:4px 8px;border-radius:3px;font-family:'Share Tech Mono',monospace;font-size:0.82rem;">
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">ที่อยู่ผู้ว่าจ้าง / สถานที่ก่อสร้าง</span>
+      <div class="ctrl-row">
+        <input type="text" id="ownerAddr" value="" placeholder="ที่อยู่หน้างาน" oninput="update()"
+          style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:white;padding:4px 8px;border-radius:3px;font-family:'Sarabun',sans-serif;font-size:0.82rem;">
+      </div>
+    </div>
+
+    <div class="section-label">📜 เงื่อนไขสัญญา</div>
+
+    <div class="ctrl-group">
+      <span class="ctrl-label">รับประกันผลงาน (เดือน)</span>
+      <div class="ctrl-row">
+        <input type="range" id="warranty" min="0" max="24" step="1" value="6" oninput="update()">
+        <span class="ctrl-val" id="warranty_v">6 ด.</span>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">ค่าปรับล่าช้า (บาท/วัน)</span>
+      <div class="ctrl-row">
+        <input type="range" id="penalty" min="0" max="5000" step="100" value="500" oninput="update()">
+        <span class="ctrl-val" id="penalty_v">500</span>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">เงินประกันผลงาน Retention (%)</span>
+      <div class="ctrl-row">
+        <input type="range" id="retention" min="0" max="10" step="1" value="5" oninput="update()">
+        <span class="ctrl-val" id="retention_v">5%</span>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">ใบเสนอราคายืนราคา (วัน)</span>
+      <div class="ctrl-row">
+        <input type="range" id="quoteValid" min="7" max="90" step="7" value="30" oninput="update()">
+        <span class="ctrl-val" id="quoteValid_v">30 วัน</span>
+      </div>
+    </div>
+
+    <div class="area-badge" id="areaBadge">พื้นที่: 28.00 ตร.ม.</div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════ DRAWINGS ════════════════════════════════ -->
+<div class="page-wrapper">
+
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="showTab('siteplan',this)">A01 ผังบริเวณ</button>
+    <button class="tab-btn" onclick="showTab('floorplan',this)">A02 ผังพื้น</button>
+    <button class="tab-btn" onclick="showTab('section',this)">A03 รูปตัด</button>
+    <button class="tab-btn" onclick="showTab('elevation',this)">A04 รูปด้าน</button>
+    <button class="tab-btn" onclick="showTab('structure',this)">S01 โครงสร้าง</button>
+    <button class="tab-btn" onclick="showTab('pile',this)">S02 เสาเข็ม</button>
+    <button class="tab-btn" onclick="showTab('boq',this)">💰 BOQ ประมาณการ</button>
+    <button class="tab-btn" onclick="showTab('boqpro',this)">📑 BOQ มืออาชีพ</button>
+    <button class="tab-btn" onclick="showTab('quote',this)">🧾 ใบเสนอราคา</button>
+    <button class="tab-btn" onclick="showTab('contract',this)">📜 สัญญาจ้าง</button>
+    <button class="tab-btn" onclick="showTab('invoice',this)">💵 ใบเบิกงวด</button>
+    <button class="tab-btn" onclick="showTab('checklist',this)">✅ Checklist ตรวจรับ</button>
+    <button class="tab-btn" onclick="showTab('payment',this)">📅 งวดงาน</button>
+    <button class="tab-btn" onclick="showTab('timeline',this)">📊 Timeline</button>
+    <button class="tab-btn" onclick="showTab('electrical',this)">⚡ แปลนไฟฟ้า</button>
+    <button class="tab-btn" onclick="showTab('spec',this)">📋 Spec วัสดุ</button>
+    <button class="tab-btn" onclick="showTab('compare',this)">⚖️ เปรียบเทียบราคา</button>
+  </div>
+
+  <!-- Save/Load toolbar -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 0;align-items:center;">
+    <button class="io-btn" onclick="saveProject()">💾 บันทึกโปรเจกต์ (.json)</button>
+    <label class="io-btn" style="cursor:pointer;">📂 เปิดโปรเจกต์<input type="file" accept=".json" onchange="loadProject(event)" style="display:none;"></label>
+    <button class="io-btn" onclick="exportBOQ_CSV()">📊 Export BOQ (Excel/CSV)</button>
+    <span id="io-status" style="font-size:0.72rem;color:var(--green);font-family:'Share Tech Mono',monospace;"></span>
+  </div>
+
+  <div class="drawing-sheet active" id="tab-siteplan">
+    <div class="canvas-area"><div class="grid-bg"></div><div class="stamp">ตัวอย่าง<br>SAMPLE<br>ONLY</div>
+      <svg id="svg-siteplan" viewBox="0 0 820 460"></svg>
+    </div>
+    <div class="notes-panel" id="notes-siteplan"></div>
+    <div class="title-block"><div class="tb-cell"><span class="tb-label">โครงการ</span><span class="tb-value" id="tb-proj-siteplan">ต่อเติมทาวน์เฮ้าส์</span></div><div class="tb-cell"><span class="tb-label">แบบ</span><span class="tb-value tb-title">ผังบริเวณ</span></div><div class="tb-cell"><span class="tb-label">มาตราส่วน / วันที่</span><span class="tb-value" id="tb-date-siteplan">1:100 / 2567</span></div><div class="tb-cell"><span class="tb-label">เลขที่แบบ</span><span class="tb-value" id="tb-rev-siteplan">A-01</span></div></div>
+  </div>
+
+  <div class="drawing-sheet" id="tab-floorplan">
+    <div class="canvas-area"><div class="grid-bg"></div><div class="stamp">ตัวอย่าง<br>SAMPLE<br>ONLY</div>
+      <svg id="svg-floorplan" viewBox="0 0 820 500"></svg>
+    </div>
+    <div class="notes-panel" id="notes-floorplan"></div>
+    <div class="title-block"><div class="tb-cell"><span class="tb-label">โครงการ</span><span class="tb-value" id="tb-proj-floorplan">ต่อเติมทาวน์เฮ้าส์</span></div><div class="tb-cell"><span class="tb-label">แบบ</span><span class="tb-value tb-title">ผังพื้น</span></div><div class="tb-cell"><span class="tb-label">มาตราส่วน / วันที่</span><span class="tb-value" id="tb-date-floorplan">1:50 / 2567</span></div><div class="tb-cell"><span class="tb-label">เลขที่แบบ</span><span class="tb-value" id="tb-rev-floorplan">A-02</span></div></div>
+  </div>
+
+  <div class="drawing-sheet" id="tab-section">
+    <div class="canvas-area"><div class="grid-bg"></div><div class="stamp">ตัวอย่าง<br>SAMPLE<br>ONLY</div>
+      <svg id="svg-section" viewBox="0 0 820 480"></svg>
+    </div>
+    <div class="notes-panel" id="notes-section"></div>
+    <div class="title-block"><div class="tb-cell"><span class="tb-label">โครงการ</span><span class="tb-value" id="tb-proj-section">ต่อเติมทาวน์เฮ้าส์</span></div><div class="tb-cell"><span class="tb-label">แบบ</span><span class="tb-value tb-title">รูปตัด A-A</span></div><div class="tb-cell"><span class="tb-label">มาตราส่วน / วันที่</span><span class="tb-value" id="tb-date-section">1:50 / 2567</span></div><div class="tb-cell"><span class="tb-label">เลขที่แบบ</span><span class="tb-value" id="tb-rev-section">A-03</span></div></div>
+  </div>
+
+  <div class="drawing-sheet" id="tab-elevation">
+    <div class="canvas-area"><div class="grid-bg"></div><div class="stamp">ตัวอย่าง<br>SAMPLE<br>ONLY</div>
+      <svg id="svg-elevation" viewBox="0 0 820 440"></svg>
+    </div>
+    <div class="notes-panel" id="notes-elevation"></div>
+    <div class="title-block"><div class="tb-cell"><span class="tb-label">โครงการ</span><span class="tb-value" id="tb-proj-elevation">ต่อเติมทาวน์เฮ้าส์</span></div><div class="tb-cell"><span class="tb-label">แบบ</span><span class="tb-value tb-title">รูปด้านข้าง</span></div><div class="tb-cell"><span class="tb-label">มาตราส่วน / วันที่</span><span class="tb-value" id="tb-date-elevation">1:50 / 2567</span></div><div class="tb-cell"><span class="tb-label">เลขที่แบบ</span><span class="tb-value" id="tb-rev-elevation">A-04</span></div></div>
+  </div>
+
+  <div class="drawing-sheet" id="tab-structure">
+    <div class="canvas-area"><div class="grid-bg"></div><div class="stamp">ตัวอย่าง<br>SAMPLE<br>ONLY</div>
+      <svg id="svg-structure" viewBox="0 0 820 480"></svg>
+    </div>
+    <div class="notes-panel" id="notes-structure"></div>
+    <div class="title-block"><div class="tb-cell"><span class="tb-label">โครงการ</span><span class="tb-value" id="tb-proj-structure">ต่อเติมทาวน์เฮ้าส์</span></div><div class="tb-cell"><span class="tb-label">แบบ</span><span class="tb-value tb-title">รายละเอียดโครงสร้าง</span></div><div class="tb-cell"><span class="tb-label">มาตราส่วน / วันที่</span><span class="tb-value" id="tb-date-structure">1:20 / 2567</span></div><div class="tb-cell"><span class="tb-label">เลขที่แบบ</span><span class="tb-value" id="tb-rev-structure">S-01</span></div></div>
+  </div>
+
+  <div class="drawing-sheet" id="tab-pile">
+    <div class="canvas-area"><div class="grid-bg"></div><div class="stamp">ตัวอย่าง<br>SAMPLE<br>ONLY</div>
+      <svg id="svg-pile" viewBox="0 0 820 540"></svg>
+    </div>
+    <div class="notes-panel" id="notes-pile"></div>
+    <div class="title-block"><div class="tb-cell"><span class="tb-label">โครงการ</span><span class="tb-value" id="tb-proj-pile">ต่อเติมทาวน์เฮ้าส์</span></div><div class="tb-cell"><span class="tb-label">แบบ</span><span class="tb-value tb-title">รายละเอียดเสาเข็ม</span></div><div class="tb-cell"><span class="tb-label">มาตราส่วน / วันที่</span><span class="tb-value" id="tb-date-pile">1:20 / 2567</span></div><div class="tb-cell"><span class="tb-label">เลขที่แบบ</span><span class="tb-value" id="tb-rev-pile">S-02</span></div></div>
+  </div>
+
+  <div class="drawing-sheet" id="tab-boq">
+    <div class="canvas-area" style="padding:0;"><div class="grid-bg"></div>
+      <div id="boq-content" style="position:relative;padding:20px 24px;"></div>
+    </div>
+    <div class="title-block"><div class="tb-cell"><span class="tb-label">โครงการ</span><span class="tb-value" id="tb-proj-boq">ต่อเติมทาวน์เฮ้าส์</span></div><div class="tb-cell"><span class="tb-label">เอกสาร</span><span class="tb-value tb-title">ประมาณการราคา BOQ</span></div><div class="tb-cell"><span class="tb-label">จัดทำวันที่</span><span class="tb-value" id="tb-date-boq">2567</span></div><div class="tb-cell"><span class="tb-label">เลขที่</span><span class="tb-value" id="tb-rev-boq">BOQ-01</span></div></div>
+  </div>
+
+  <div class="drawing-sheet" id="tab-payment">
+    <div class="canvas-area" style="padding:0;"><div class="grid-bg"></div>
+      <div id="payment-content" style="position:relative;padding:20px 24px;"></div>
+    </div>
+    <div class="title-block"><div class="tb-cell"><span class="tb-label">โครงการ</span><span class="tb-value" id="tb-proj-payment">ต่อเติมทาวน์เฮ้าส์</span></div><div class="tb-cell"><span class="tb-label">เอกสาร</span><span class="tb-value tb-title">งวดงาน-งวดเงิน</span></div><div class="tb-cell"><span class="tb-label">จัดทำวันที่</span><span class="tb-value" id="tb-date-payment">2567</span></div><div class="tb-cell"><span class="tb-label">เลขที่</span><span class="tb-value" id="tb-rev-payment">PAY-01</span></div></div>
+  </div>
+
+  <div class="drawing-sheet" id="tab-timeline">
+    <div class="canvas-area" style="padding:0;"><div class="grid-bg"></div>
+      <div id="timeline-content" style="position:relative;padding:20px 24px;"></div>
+    </div>
+    <div class="title-block"><div class="tb-cell"><span class="tb-label">โครงการ</span><span class="tb-value" id="tb-proj-timeline">ต่อเติมทาวน์เฮ้าส์</span></div><div class="tb-cell"><span class="tb-label">เอกสาร</span><span class="tb-value tb-title">แผนงานก่อสร้าง</span></div><div class="tb-cell"><span class="tb-label">จัดทำวันที่</span><span class="tb-value" id="tb-date-timeline">2567</span></div><div class="tb-cell"><span class="tb-label">เลขที่</span><span class="tb-value" id="tb-rev-timeline">SCH-01</span></div></div>
+  </div>
+
+  <div class="drawing-sheet" id="tab-electrical">
+    <div class="canvas-area"><div class="grid-bg"></div><div class="stamp">ตัวอย่าง<br>SAMPLE<br>ONLY</div>
+      <svg id="svg-electrical" viewBox="0 0 820 540"></svg>
+    </div>
+    <div class="notes-panel" id="notes-electrical"></div>
+    <div class="title-block"><div class="tb-cell"><span class="tb-label">โครงการ</span><span class="tb-value" id="tb-proj-electrical">ต่อเติมทาวน์เฮ้าส์</span></div><div class="tb-cell"><span class="tb-label">แบบ</span><span class="tb-value tb-title">แปลนไฟฟ้า-ฝ้า</span></div><div class="tb-cell"><span class="tb-label">มาตราส่วน / วันที่</span><span class="tb-value" id="tb-date-electrical">1:50 / 2567</span></div><div class="tb-cell"><span class="tb-label">เลขที่แบบ</span><span class="tb-value" id="tb-rev-electrical">E-01</span></div></div>
+  </div>
+
+  <div class="drawing-sheet" id="tab-spec">
+    <div class="canvas-area" style="padding:0;"><div class="grid-bg"></div>
+      <div id="spec-content" style="position:relative;padding:20px 24px;"></div>
+    </div>
+    <div class="title-block"><div class="tb-cell"><span class="tb-label">โครงการ</span><span class="tb-value" id="tb-proj-spec">ต่อเติมทาวน์เฮ้าส์</span></div><div class="tb-cell"><span class="tb-label">เอกสาร</span><span class="tb-value tb-title">รายการประกอบแบบ</span></div><div class="tb-cell"><span class="tb-label">จัดทำวันที่</span><span class="tb-value" id="tb-date-spec">2567</span></div><div class="tb-cell"><span class="tb-label">เลขที่</span><span class="tb-value" id="tb-rev-spec">SPEC-01</span></div></div>
+  </div>
+
+  <div class="drawing-sheet" id="tab-compare">
+    <div class="canvas-area" style="padding:0;"><div class="grid-bg"></div>
+      <div id="compare-content" style="position:relative;padding:20px 24px;"></div>
+    </div>
+    <div class="title-block"><div class="tb-cell"><span class="tb-label">โครงการ</span><span class="tb-value" id="tb-proj-compare">ต่อเติมทาวน์เฮ้าส์</span></div><div class="tb-cell"><span class="tb-label">เอกสาร</span><span class="tb-value tb-title">เปรียบเทียบทางเลือก</span></div><div class="tb-cell"><span class="tb-label">จัดทำวันที่</span><span class="tb-value" id="tb-date-compare">2567</span></div><div class="tb-cell"><span class="tb-label">เลขที่</span><span class="tb-value" id="tb-rev-compare">CMP-01</span></div></div>
+  </div>
+
+  <div class="drawing-sheet" id="tab-boqpro">
+    <div class="canvas-area" style="padding:0;"><div class="grid-bg"></div>
+      <div id="boqpro-content" style="position:relative;padding:20px 24px;"></div>
+    </div>
+    <div class="title-block"><div class="tb-cell"><span class="tb-label">โครงการ</span><span class="tb-value" id="tb-proj-boqpro">ต่อเติมทาวน์เฮ้าส์</span></div><div class="tb-cell"><span class="tb-label">เอกสาร</span><span class="tb-value tb-title">BOQ มาตรฐานวิชาชีพ</span></div><div class="tb-cell"><span class="tb-label">จัดทำวันที่</span><span class="tb-value" id="tb-date-boqpro">2567</span></div><div class="tb-cell"><span class="tb-label">เลขที่</span><span class="tb-value" id="tb-rev-boqpro">BOQ-PRO</span></div></div>
+  </div>
+
+  <div class="drawing-sheet" id="tab-quote">
+    <div class="canvas-area" style="padding:0;"><div class="grid-bg"></div>
+      <div id="quote-content" style="position:relative;padding:20px 24px;"></div>
+    </div>
+    <div class="title-block"><div class="tb-cell"><span class="tb-label">โครงการ</span><span class="tb-value" id="tb-proj-quote">ต่อเติมทาวน์เฮ้าส์</span></div><div class="tb-cell"><span class="tb-label">เอกสาร</span><span class="tb-value tb-title">ใบเสนอราคา</span></div><div class="tb-cell"><span class="tb-label">จัดทำวันที่</span><span class="tb-value" id="tb-date-quote">2567</span></div><div class="tb-cell"><span class="tb-label">เลขที่</span><span class="tb-value" id="tb-rev-quote">QT-01</span></div></div>
+  </div>
+
+  <div class="drawing-sheet" id="tab-contract">
+    <div class="canvas-area" style="padding:0;"><div class="grid-bg"></div>
+      <div id="contract-content" style="position:relative;padding:20px 24px;"></div>
+    </div>
+    <div class="title-block"><div class="tb-cell"><span class="tb-label">โครงการ</span><span class="tb-value" id="tb-proj-contract">ต่อเติมทาวน์เฮ้าส์</span></div><div class="tb-cell"><span class="tb-label">เอกสาร</span><span class="tb-value tb-title">สัญญาจ้างเหมา</span></div><div class="tb-cell"><span class="tb-label">จัดทำวันที่</span><span class="tb-value" id="tb-date-contract">2567</span></div><div class="tb-cell"><span class="tb-label">เลขที่</span><span class="tb-value" id="tb-rev-contract">CT-01</span></div></div>
+  </div>
+
+  <div class="drawing-sheet" id="tab-invoice">
+    <div class="canvas-area" style="padding:0;"><div class="grid-bg"></div>
+      <div id="invoice-content" style="position:relative;padding:20px 24px;"></div>
+    </div>
+    <div class="title-block"><div class="tb-cell"><span class="tb-label">โครงการ</span><span class="tb-value" id="tb-proj-invoice">ต่อเติมทาวน์เฮ้าส์</span></div><div class="tb-cell"><span class="tb-label">เอกสาร</span><span class="tb-value tb-title">ใบเบิกงวดงาน</span></div><div class="tb-cell"><span class="tb-label">จัดทำวันที่</span><span class="tb-value" id="tb-date-invoice">2567</span></div><div class="tb-cell"><span class="tb-label">เลขที่</span><span class="tb-value" id="tb-rev-invoice">INV-01</span></div></div>
+  </div>
+
+  <div class="drawing-sheet" id="tab-checklist">
+    <div class="canvas-area" style="padding:0;"><div class="grid-bg"></div>
+      <div id="checklist-content" style="position:relative;padding:20px 24px;"></div>
+    </div>
+    <div class="title-block"><div class="tb-cell"><span class="tb-label">โครงการ</span><span class="tb-value" id="tb-proj-checklist">ต่อเติมทาวน์เฮ้าส์</span></div><div class="tb-cell"><span class="tb-label">เอกสาร</span><span class="tb-value tb-title">รายการตรวจรับงาน</span></div><div class="tb-cell"><span class="tb-label">จัดทำวันที่</span><span class="tb-value" id="tb-date-checklist">2567</span></div><div class="tb-cell"><span class="tb-label">เลขที่</span><span class="tb-value" id="tb-rev-checklist">CHK-01</span></div></div>
+  </div>
+
+</div><!-- end page-wrapper -->
+
+<script>
+/* ─────────────────────────────────────────────
+   SVG Helper
+───────────────────────────────────────────── */
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs={}, text='') {
+  const e = document.createElementNS(NS, tag);
+  for (const [k,v] of Object.entries(attrs)) e.setAttribute(k,v);
+  if (text) e.textContent = text;
+  return e;
+}
+function txt(svg, x, y, str, attrs={}) {
+  const defaults = { 'font-family':'Sarabun,sans-serif','font-size':'11','fill':'#1a1a2e' };
+  const e = el('text', Object.assign({x,y,...defaults}, attrs), str);
+  svg.appendChild(e); return e;
+}
+function line(svg, x1, y1, x2, y2, attrs={}) {
+  const e = el('line', Object.assign({x1,y1,x2,y2,stroke:'#1e3a5f','stroke-width':'1.5'}, attrs));
+  svg.appendChild(e); return e;
+}
+function rect(svg, x, y, w, h, attrs={}) {
+  const e = el('rect', Object.assign({x,y,width:w,height:h}, attrs));
+  svg.appendChild(e); return e;
+}
+function poly(svg, pts, attrs={}) {
+  const e = el('polygon', Object.assign({points:pts.map(p=>p.join(',')).join(' ')}, attrs));
+  svg.appendChild(e); return e;
+}
+function dim(svg, x1,y1,x2,y2, label, offset=14) {
+  // dimension line with arrows
+  const mx = (x1+x2)/2, my = (y1+y2)/2;
+  const isH = Math.abs(y1-y2) < 2;
+  line(svg,x1,y1,x2,y2,{stroke:'#1e3a5f','stroke-width':'1.5','marker-start':'url(#dimArrowR)','marker-end':'url(#dimArrow)'});
+  if (isH) {
+    line(svg,x1,y1-offset,x1,y1+4,{stroke:'#6b7c93','stroke-width':'1','stroke-dasharray':'3,2'});
+    line(svg,x2,y2-offset,x2,y2+4,{stroke:'#6b7c93','stroke-width':'1','stroke-dasharray':'3,2'});
+    txt(svg,mx,y1-offset-3,label,{'text-anchor':'middle','font-family':'Share Tech Mono,monospace','font-size':'10','fill':'#1e3a5f'});
+  } else {
+    line(svg,x1-4,y1,x1+offset,y1,{stroke:'#6b7c93','stroke-width':'1','stroke-dasharray':'3,2'});
+    line(svg,x2-4,y2,x2+offset,y2,{stroke:'#6b7c93','stroke-width':'1','stroke-dasharray':'3,2'});
+    txt(svg,x1+offset+3,my,label,{'font-family':'Share Tech Mono,monospace','font-size':'10','fill':'#1e3a5f','transform':`rotate(90,${x1+offset+3},${my})`,'text-anchor':'middle'});
+  }
+}
+function addDefs(svg) {
+  const defs = el('defs');
+  const mkArrow = (id, rev) => {
+    const m = el('marker',{id,markerWidth:'7',markerHeight:'7',refX:'3.5',refY:'3.5',orient: rev ? 'auto-start-reverse':'auto'});
+    m.appendChild(el('path',{d:'M0,0 L7,3.5 L0,7 Z',fill:'#1e3a5f'}));
+    return m;
+  };
+  defs.appendChild(mkArrow('dimArrow',false));
+  defs.appendChild(mkArrow('dimArrowR',true));
+
+  // concrete pattern
+  const cp = el('pattern',{id:'concrete',patternUnits:'userSpaceOnUse',width:'8',height:'8'});
+  cp.appendChild(el('rect',{width:'8',height:'8',fill:'#c8bfb0'}));
+  const cl = el('line',{x1:'0',y1:'8',x2:'8',y2:'0',stroke:'#a89880','stroke-width':'0.6'});
+  cp.appendChild(cl); defs.appendChild(cp);
+
+  // soil pattern
+  const sp = el('pattern',{id:'soil',patternUnits:'userSpaceOnUse',width:'10',height:'10'});
+  sp.appendChild(el('rect',{width:'10',height:'10',fill:'#c4b49a'}));
+  [[2,8,1.2],[7,4,1.5],[5,8,1]].forEach(([cx,cy,r])=>sp.appendChild(el('circle',{cx,cy,r,fill:'#8a7a6a'})));
+  defs.appendChild(sp);
+
+  // rebar pattern
+  const rp = el('pattern',{id:'rebar',patternUnits:'userSpaceOnUse',width:'8',height:'8',patternTransform:'rotate(45)'});
+  rp.appendChild(el('rect',{width:'8',height:'8',fill:'#c8bfb0'}));
+  rp.appendChild(el('line',{x1:'4',y1:'0',x2:'4',y2:'8',stroke:'#8a8070','stroke-width':'1.5'}));
+  defs.appendChild(rp);
+
+  svg.appendChild(defs);
+}
+
+/* ─────────────────────────────────────────────
+   Get values
+───────────────────────────────────────────── */
+function getVals() {
+  return {
+    hW: +document.getElementById('hW').value,
+    hL: +document.getElementById('hL').value,
+    hH: +document.getElementById('hH').value,
+    eW: +document.getElementById('eW').value,
+    eL: +document.getElementById('eL').value,
+    eH: +document.getElementById('eH').value,
+    colSize: +document.getElementById('colSize').value / 100,
+    footD: +document.getElementById('footD').value,
+    footW: +document.getElementById('footW').value,
+    pileType: document.getElementById('pileType').value,
+    pileDia: +document.getElementById('pileDia').value,
+    pileLen: +document.getElementById('pileLen').value,
+    pileCount: +document.getElementById('pileCount').value,
+    // Project info
+    projName: document.getElementById('projName').value || 'ต่อเติมทาวน์เฮ้าส์',
+    projOwner: document.getElementById('projOwner').value || '-',
+    projRev: document.getElementById('projRev').value || 'R0',
+    projDate: document.getElementById('projDate').value,
+    overhead: +document.getElementById('overhead').value,
+    // BOQ rates
+    rEarth: +document.getElementById('rEarth').value,
+    rConc: +document.getElementById('rConc').value,
+    rMasonry: +document.getElementById('rMasonry').value,
+    rRoof: +document.getElementById('rRoof').value,
+    rFloor: +document.getElementById('rFloor').value,
+    rElec: +document.getElementById('rElec').value,
+    rPile: +document.getElementById('rPile').value,
+    conting: +document.getElementById('conting').value,
+    sigContractor: document.getElementById('sigContractor').value || '',
+    sigCompany: document.getElementById('sigCompany').value || '',
+    totalDays: +document.getElementById('totalDays').value,
+    coAddr: document.getElementById('coAddr').value || '',
+    coTax: document.getElementById('coTax').value || '',
+    ownerAddr: document.getElementById('ownerAddr').value || '',
+    warranty: +document.getElementById('warranty').value,
+    penalty: +document.getElementById('penalty').value,
+    retention: +document.getElementById('retention').value,
+    quoteValid: +document.getElementById('quoteValid').value,
+  };
+}
+
+/* ─────────────────────────────────────────────
+   A01 SITE PLAN
+───────────────────────────────────────────── */
+function drawSiteplan(v) {
+  const svg = document.getElementById('svg-siteplan');
+  svg.innerHTML = ''; addDefs(svg);
+  const VW=820,VH=460;
+  const scale=22; // px per meter at 1:100
+  const hPx=v.hW*scale, hLpx=v.hL*scale, ePx=v.eW*scale, eLpx=v.eL*scale;
+  const ox=100, oy=60; // origin of site
+
+  // Title
+  txt(svg,VW/2,22,'ผังบริเวณ (SITE PLAN)',{'text-anchor':'middle','font-size':'15','font-weight':'700','fill':'#1e3a5f'});
+  txt(svg,VW/2,38,'SCALE 1:100',{'text-anchor':'middle','font-family':'Share Tech Mono,monospace','font-size':'9','fill':'#6b7c93'});
+
+  const siteW = hPx + ePx + 60;
+  const siteH = Math.max(hLpx, eLpx) + 40;
+
+  // Site boundary
+  rect(svg,ox,oy,siteW,siteH,{fill:'none',stroke:'#1a1a2e','stroke-width':'2','stroke-dasharray':'12,5'});
+  txt(svg,ox+2,oy-5,'แนวเขตที่ดิน (PROPERTY LINE)',{'font-size':'8','fill':'#6b7c93','font-family':'Share Tech Mono,monospace'});
+
+  // Road
+  const roadW=55;
+  rect(svg,ox-roadW,oy,roadW,siteH,{fill:'#e8e0d0',stroke:'#aaa','stroke-width':'1'});
+  txt(svg,ox-roadW/2,(oy+oy+siteH)/2,'ถนน',{'text-anchor':'middle','font-size':'10','fill':'#888','transform':`rotate(-90,${ox-roadW/2},${(oy*2+siteH)/2})`});
+  line(svg,ox-roadW/2,oy+8,ox-roadW/2,oy+siteH-8,{stroke:'white','stroke-width':'2','stroke-dasharray':'15,10'});
+
+  // Neighbor above
+  const neighH = (siteH - hLpx)/2;
+  if(neighH>10) {
+    rect(svg,ox,oy,hPx,neighH,{fill:'#ddd8cc',stroke:'#aaa','stroke-width':'1'});
+    txt(svg,ox+hPx/2,oy+neighH/2+5,'อาคารข้างเคียง',{'text-anchor':'middle','font-size':'10','fill':'#aaa'});
+  }
+
+  // Existing house
+  const houseY = oy + (siteH-hLpx)/2;
+  rect(svg,ox,houseY,hPx,hLpx,{fill:'#e8e4d8',stroke:'#1a1a2e','stroke-width':'2'});
+  txt(svg,ox+hPx/2,houseY+hLpx/2-8,'บ้านเดิม',{'text-anchor':'middle','font-size':'12','font-weight':'600','fill':'#1e3a5f'});
+  txt(svg,ox+hPx/2,houseY+hLpx/2+8,`${v.hW}×${v.hL} ม.`,{'text-anchor':'middle','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#6b7c93'});
+
+  // Neighbor below
+  const neighH2 = siteH - hLpx - (siteH-hLpx)/2;
+  if(neighH2>10) {
+    rect(svg,ox,houseY+hLpx,hPx,neighH2,{fill:'#ddd8cc',stroke:'#aaa','stroke-width':'1'});
+  }
+
+  // Extension
+  const extX = ox + hPx;
+  const extY = houseY;
+  rect(svg,extX,extY,ePx,eLpx,{fill:'#d4edda',stroke:'#c0392b','stroke-width':'2.5','stroke-dasharray':'8,4'});
+  txt(svg,extX+ePx/2,extY+eLpx/2-8,'ส่วนต่อเติม',{'text-anchor':'middle','font-size':'12','font-weight':'700','fill':'#c0392b'});
+  txt(svg,extX+ePx/2,extY+eLpx/2+8,`${v.eW}×${v.eL} ม.`,{'text-anchor':'middle','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#c0392b'});
+
+  // Setback line
+  const sbX = extX+ePx+6;
+  line(svg,sbX,oy,sbX,oy+siteH,{stroke:'#ff6b6b','stroke-width':'1','stroke-dasharray':'6,3'});
+  txt(svg,sbX+2,oy-5,'แนวเขตที่ดิน',{'font-size':'8','fill':'#ff6b6b','font-family':'Share Tech Mono,monospace'});
+
+  // Dimensions
+  dim(svg,ox,oy-14,ox+hPx,oy-14,`${v.hW} ม.`);
+  dim(svg,ox+hPx,oy-14,ox+hPx+ePx,oy-14,`${v.eW} ม.`);
+  dim(svg,ox+siteW+18,houseY,ox+siteW+18,houseY+hLpx,`${v.hL} ม.`);
+  dim(svg,extX+ePx+30,extY,extX+ePx+30,extY+eLpx,`${v.eL} ม.`);
+
+  // North arrow
+  const nx=VW-50,ny=110;
+  svg.appendChild(el('circle',{cx:nx,cy:ny,r:'20',fill:'none',stroke:'#1e3a5f','stroke-width':'1.5'}));
+  svg.appendChild(el('polygon',{points:`${nx},${ny-16} ${nx-5},${ny+10} ${nx},${ny+5} ${nx+5},${ny+10}`,fill:'#1e3a5f'}));
+  svg.appendChild(el('polygon',{points:`${nx},${ny+16} ${nx-5},${ny-10} ${nx},${ny-5} ${nx+5},${ny-10}`,fill:'white',stroke:'#1e3a5f','stroke-width':'1'}));
+  txt(svg,nx,ny-24,'N',{'text-anchor':'middle','font-family':'Share Tech Mono,monospace','font-size':'12','font-weight':'bold','fill':'#1e3a5f'});
+
+  // Notes
+  const area = (v.eW*v.eL).toFixed(2);
+  document.getElementById('notes-siteplan').innerHTML = `<h4>📌 หมายเหตุผังบริเวณ</h4><ul>
+    <li>พื้นที่ต่อเติม <span class="dyn">${v.eW} × ${v.eL} ม. = ${area} ตร.ม.</span></li>
+    <li>ถอยร่นจากแนวเขตที่ดินไม่น้อยกว่า 0.50 ม. (กรณีผนังทึบ)</li>
+    <li>กรณีเปิดช่องแสง ต้องถอยร่นไม่น้อยกว่า 2.00 ม.</li>
+    <li>ตรวจสอบโฉนดที่ดินก่อนก่อสร้างทุกครั้ง</li></ul>`;
+}
+
+/* ─────────────────────────────────────────────
+   A02 FLOOR PLAN
+───────────────────────────────────────────── */
+function drawFloorplan(v) {
+  const svg = document.getElementById('svg-floorplan');
+  svg.innerHTML = ''; addDefs(svg);
+
+  txt(svg,410,24,'ผังพื้น (FLOOR PLAN)',{'text-anchor':'middle','font-size':'15','font-weight':'700','fill':'#1e3a5f'});
+  txt(svg,410,40,'SCALE 1:50',{'text-anchor':'middle','font-family':'Share Tech Mono,monospace','font-size':'9','fill':'#6b7c93'});
+
+  // px scale: fit house + extension into ~600px width
+  const availW = 580, availH = 380;
+  const scaleX = availW / (v.hW + v.eW + 1);
+  const scaleY = availH / Math.max(v.hL, v.eL);
+  const sc = Math.min(scaleX, scaleY) * 0.85;
+
+  const ox=80, oy=60;
+  const wt=10; // wall thickness px
+  const hPx=v.hW*sc, hLpx=v.hL*sc, ePx=v.eW*sc, eLpx=v.eL*sc;
+
+  // Existing house walls
+  const wallColor='#a89880';
+  // outer shell
+  rect(svg,ox,oy,hPx+wt,wt,{fill:wallColor,stroke:'#1a1a2e','stroke-width':'1.5'});           // top
+  rect(svg,ox,oy,wt,hLpx,{fill:wallColor,stroke:'#1a1a2e','stroke-width':'1.5'});              // left
+  rect(svg,ox+hPx,oy,wt,hLpx,{fill:wallColor,stroke:'#1a1a2e','stroke-width':'1.5'});          // right (shared)
+  rect(svg,ox,oy+hLpx,hPx+wt,wt,{fill:wallColor,stroke:'#1a1a2e','stroke-width':'1.5'});       // bottom
+  // interior
+  rect(svg,ox+wt,oy+wt,hPx-wt,hLpx-wt,{fill:'#f5f0e8'});
+  txt(svg,ox+hPx/2,oy+hLpx/2-8,'บ้านเดิม',{'text-anchor':'middle','font-size':'13','font-weight':'600','fill':'#1e3a5f'});
+  txt(svg,ox+hPx/2,oy+hLpx/2+8,`${v.hW}×${v.hL} ม.`,{'text-anchor':'middle','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#6b7c93'});
+
+  // Door opening on shared wall
+  const doorH = Math.min(eLpx*0.35, 60);
+  const doorY = oy + eLpx/2 - doorH/2;
+  rect(svg,ox+hPx,doorY,wt,doorH,{fill:'#d4edda'});
+  txt(svg,ox+hPx+wt/2,doorY+doorH/2,'ประตูเชื่อม',{'text-anchor':'middle','font-size':'8','fill':'#c0392b','transform':`rotate(90,${ox+hPx+wt/2},${doorY+doorH/2})`});
+
+  // Extension walls
+  const extColor='#7db87d';
+  const ex=ox+hPx+wt;
+  rect(svg,ex,oy,ePx,wt,{fill:extColor,stroke:'#c0392b','stroke-width':'2'});        // top
+  rect(svg,ex+ePx,oy,wt,eLpx,{fill:extColor,stroke:'#c0392b','stroke-width':'2'});   // right
+  rect(svg,ex,oy+eLpx,ePx+wt,wt,{fill:extColor,stroke:'#c0392b','stroke-width':'2'});// bottom
+  // interior
+  rect(svg,ex,oy+wt,ePx,eLpx-wt,{fill:'#eaf5ea'});
+  txt(svg,ex+ePx/2,oy+eLpx/2-8,'ส่วนต่อเติม',{'text-anchor':'middle','font-size':'13','font-weight':'700','fill':'#c0392b'});
+  txt(svg,ex+ePx/2,oy+eLpx/2+8,`${v.eW}×${v.eL} ม.`,{'text-anchor':'middle','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#c0392b'});
+
+  // Windows on extension right wall
+  const winH=Math.min(eLpx*0.2,50);
+  const winY1=oy+eLpx*0.25, winY2=oy+eLpx*0.6;
+  [[winY1],[winY2]].forEach(([wy])=>{
+    rect(svg,ex+ePx,wy,wt,winH,{fill:'#aed6e8',stroke:'#1e3a5f','stroke-width':'1.5'});
+    line(svg,ex+ePx,wy+winH/2,ex+ePx+wt,wy+winH/2,{stroke:'#1e3a5f','stroke-width':'1'});
+  });
+
+  // Section line
+  const secY = oy + eLpx/2;
+  line(svg,ox-10,secY,ex+ePx+wt+30,secY,{stroke:'#d4a853','stroke-width':'1.5','stroke-dasharray':'14,4,3,4'});
+  txt(svg,ex+ePx+wt+32,secY-4,'A',{'font-size':'10','font-family':'Share Tech Mono,monospace','fill':'#d4a853','font-weight':'700'});
+  txt(svg,ex+ePx+wt+32,secY+12,'A',{'font-size':'10','font-family':'Share Tech Mono,monospace','fill':'#d4a853','font-weight':'700'});
+
+  // Dimensions
+  const dimY = oy - 18;
+  dim(svg,ox,dimY,ox+hPx+wt,dimY,`${v.hW} ม.`);
+  dim(svg,ex,dimY,ex+ePx+wt,dimY,`${v.eW} ม.`);
+  dim(svg,ex+ePx+wt+20,oy,ex+ePx+wt+20,oy+hLpx+wt,`${v.hL} ม.`);
+  dim(svg,ex+ePx+wt+48,oy,ex+ePx+wt+48,oy+eLpx+wt,`${v.eL} ม.`);
+
+  // Legend
+  const ly=oy+hLpx+wt+22;
+  rect(svg,ox,ly,16,10,{fill:'#a89880',stroke:'#1a1a2e','stroke-width':'1'});
+  txt(svg,ox+20,ly+9,'ผนังเดิม',{'font-size':'9','fill':'#6b7c93'});
+  rect(svg,ox+80,ly,16,10,{fill:'#7db87d',stroke:'#c0392b','stroke-width':'1'});
+  txt(svg,ox+100,ly+9,'ผนังใหม่',{'font-size':'9','fill':'#c0392b'});
+  rect(svg,ox+170,ly,16,10,{fill:'#aed6e8',stroke:'#1e3a5f','stroke-width':'1'});
+  txt(svg,ox+190,ly+9,'หน้าต่าง',{'font-size':'9','fill':'#6b7c93'});
+
+  const area=(v.eW*v.eL).toFixed(2);
+  document.getElementById('notes-floorplan').innerHTML=`<h4>📌 หมายเหตุผังพื้น</h4><ul>
+    <li>พื้นที่ต่อเติม <span class="dyn">${v.eW} × ${v.eL} ม. = ${area} ตร.ม.</span></li>
+    <li>ผนังเดิมที่เจาะเปิดต้องทำ Lintel คร่อมช่องเปิด ขนาด 0.90 × 2.00 ม.</li>
+    <li>ระดับพื้นส่วนต่อเติมให้เสมอกับพื้นบ้านเดิม ±0.00</li>
+    <li>ผนังด้านนอก (ชิดเขตที่ดิน) ให้ทำเป็นผนังทึบ ไม่เปิดช่องแสง</li></ul>`;
+}
+
+/* ─────────────────────────────────────────────
+   A03 SECTION
+───────────────────────────────────────────── */
+function drawSection(v) {
+  const svg = document.getElementById('svg-section');
+  svg.innerHTML=''; addDefs(svg);
+
+  txt(svg,410,24,'รูปตัด A-A (SECTION A-A)',{'text-anchor':'middle','font-size':'15','font-weight':'700','fill':'#1e3a5f'});
+  txt(svg,410,40,'SCALE 1:50',{'text-anchor':'middle','font-family':'Share Tech Mono,monospace','font-size':'9','fill':'#6b7c93'});
+
+  const GL=390; // ground level y
+  // scale: 1m = ? px — fit both houses width-wise
+  const availW=580, totalW=v.hW+v.eW;
+  const sc=Math.min(availW/totalW*0.7, 35);
+  const scH=Math.min(240/(Math.max(v.hH,v.eH)+1), 55);
+
+  const ox=90;
+  const hPx=v.hW*sc, ePx=v.eW*sc;
+  const hHpx=v.hH*scH, eHpx=v.eH*scH;
+  const wt=9;
+
+  // Ground
+  line(svg,60,GL,750,GL,{stroke:'#8a7a6a','stroke-width':'2.5'});
+  rect(svg,60,GL,700,40,{fill:'url(#soil)'});
+  txt(svg,55,GL+2,'GL',{'text-anchor':'end','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#6b7c93'});
+
+  // Footing existing
+  const footExW=40, footExH=20;
+  rect(svg,ox+hPx/2-footExW/2,GL-footExH,footExW,footExH,{fill:'url(#concrete)',stroke:'#1a1a2e','stroke-width':'1.5'});
+
+  // Existing walls + floor
+  const hBaseY = GL - hHpx;
+  rect(svg,ox,hBaseY,wt,hHpx,{fill:'#c8c0ac',stroke:'#1a1a2e','stroke-width':'1.5'});      // left wall
+  rect(svg,ox+hPx,hBaseY,wt,hHpx,{fill:'#c8c0ac',stroke:'#1a1a2e','stroke-width':'1.5'});   // right wall
+  rect(svg,ox,hBaseY,hPx+wt,wt,{fill:'#c8c0ac',stroke:'#1a1a2e','stroke-width':'1.5'});     // roof beam
+  rect(svg,ox,GL-wt,hPx+wt,wt,{fill:'url(#concrete)',stroke:'#1a1a2e','stroke-width':'1'}); // floor slab
+  rect(svg,ox+wt,hBaseY+wt,hPx-wt,hHpx-wt*2,{fill:'#f5f0e8',opacity:'0.7'});
+  txt(svg,ox+hPx/2+wt/2,hBaseY+hHpx/2,'บ้านเดิม',{'text-anchor':'middle','font-size':'12','fill':'#6b7c93'});
+  txt(svg,ox+hPx/2+wt/2,hBaseY+hHpx/2+16,`สูง ${v.hH}ม.`,{'text-anchor':'middle','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#6b7c93'});
+
+  // Roof existing
+  const ridgeY=hBaseY-Math.min(hHpx*0.25,50);
+  const ridgeX=ox+hPx/2+wt/2;
+  poly(svg,[[ox,hBaseY],[ridgeX,ridgeY],[ox+hPx+wt,hBaseY]],{fill:'#c8a878',stroke:'#1a1a2e','stroke-width':'2'});
+
+  // Extension
+  const ex=ox+hPx+wt;
+  const eBaseY=GL-eHpx;
+  rect(svg,ex,eBaseY,wt,eHpx,{fill:'#7db87d',stroke:'#c0392b','stroke-width':'2'});     // left shared
+  rect(svg,ex+ePx,eBaseY,wt,eHpx,{fill:'#7db87d',stroke:'#c0392b','stroke-width':'2'}); // right
+  rect(svg,ex,eBaseY,ePx+wt,wt,{fill:'#7db87d',stroke:'#c0392b','stroke-width':'2'});   // roof beam
+  rect(svg,ex,GL-wt,ePx+wt,wt,{fill:'url(#concrete)',stroke:'#c0392b','stroke-width':'1.5'});// floor
+  rect(svg,ex+wt,eBaseY+wt,ePx-wt,eHpx-wt*2,{fill:'#eaf5ea',opacity:'0.7'});
+  txt(svg,ex+ePx/2+wt/2,eBaseY+eHpx/2,'ส่วนต่อเติม',{'text-anchor':'middle','font-size':'12','font-weight':'700','fill':'#c0392b'});
+  txt(svg,ex+ePx/2+wt/2,eBaseY+eHpx/2+16,`สูง ${v.eH}ม.`,{'text-anchor':'middle','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#c0392b'});
+
+  // Extension roof (low slope)
+  const eRidgeY=eBaseY-Math.min(eHpx*0.15,30);
+  poly(svg,[[ex,eBaseY],[ex+ePx/2+wt/2,eRidgeY],[ex+ePx+wt,eBaseY]],{fill:'#98c898',stroke:'#c0392b','stroke-width':'2'});
+
+  // Lintel
+  const lintelY=GL-(eHpx*0.7);
+  rect(svg,ox+hPx,lintelY,wt,14,{fill:'#5a8a5a',stroke:'#c0392b','stroke-width':'1.5'});
+  txt(svg,ox+hPx+wt+2,lintelY+10,'Lintel',{'font-size':'8','fill':'#c0392b','font-family':'Share Tech Mono,monospace'});
+
+  // Footing extension
+  const footD_px = v.footD * scH;
+  const footW_px = v.footW * sc;
+  rect(svg,ex+ePx/2-footW_px/2,GL,footW_px,footD_px,{fill:'url(#concrete)',stroke:'#c0392b','stroke-width':'2'});
+  txt(svg,ex+ePx/2,GL+footD_px+12,'ฐานรากใหม่',{'text-anchor':'middle','font-size':'9','fill':'#c0392b'});
+  txt(svg,ex+ePx/2,GL+footD_px+24,`${v.footW}×${v.footW}×${v.footD} ม.`,{'text-anchor':'middle','font-size':'8','font-family':'Share Tech Mono,monospace','fill':'#c0392b'});
+
+  // Dimensions height
+  dim(svg,ox-22,hBaseY,ox-22,GL,`${v.hH} ม.`,-8);
+  dim(svg,ex+ePx+wt+22,eBaseY,ex+ePx+wt+22,GL,`${v.eH} ม.`,-8);
+  // Width
+  dim(svg,ox,hBaseY-18,ox+hPx+wt,hBaseY-18,`${v.hW} ม.`);
+  dim(svg,ex,eBaseY-18,ex+ePx+wt,eBaseY-18,`${v.eW} ม.`);
+
+  // Drain pipe
+  const dpX=ex+ePx+wt+2;
+  rect(svg,dpX,eBaseY,6,eHpx,{fill:'#4a8ab4',stroke:'#2a6a94','stroke-width':'1'});
+  txt(svg,dpX+8,eBaseY+eHpx/2,'ท่อระบายน้ำ',{'font-size':'8','fill':'#4a8ab4','transform':`rotate(90,${dpX+8},${eBaseY+eHpx/2})`,'text-anchor':'middle'});
+
+  document.getElementById('notes-section').innerHTML=`<h4>📌 หมายเหตุรูปตัด</h4><ul>
+    <li>ความสูงภายในส่วนต่อเติม <span class="dyn">${v.eH} ม.</span> (ต่ำกว่าบ้านเดิม ${(v.hH-v.eH).toFixed(1)} ม. เพื่อไม่ขวางแสง)</li>
+    <li>ฐานรากใหม่ขนาด <span class="dyn">${v.footW}×${v.footW} ม.</span> ลึก <span class="dyn">${v.footD} ม.</span></li>
+    <li>พื้นคอนกรีตเสริมเหล็กหนา 0.12 ม. บนชั้นดินบดอัด</li>
+    <li>คาน Lintel เหนือช่องประตูเชื่อม ขนาด 0.15×0.20 ม. เหล็กเสริม DB12 2 เส้น</li>
+    <li>ทำรางน้ำฝน PVC Ø150 มม. ระบายน้ำออกด้านหน้าอาคาร</li></ul>`;
+}
+
+/* ─────────────────────────────────────────────
+   A04 ELEVATION
+───────────────────────────────────────────── */
+function drawElevation(v) {
+  const svg = document.getElementById('svg-elevation');
+  svg.innerHTML=''; addDefs(svg);
+
+  txt(svg,410,24,'รูปด้านข้าง (SIDE ELEVATION)',{'text-anchor':'middle','font-size':'15','font-weight':'700','fill':'#1e3a5f'});
+  txt(svg,410,40,'SCALE 1:50',{'text-anchor':'middle','font-family':'Share Tech Mono,monospace','font-size':'9','fill':'#6b7c93'});
+
+  const GL=380;
+  const availL=500, totalL=v.hL+v.eL;
+  const sc=Math.min(availL/totalL*0.75,22);
+  const scH=Math.min(220/(Math.max(v.hH,v.eH)+0.5),55);
+
+  const ox=90;
+  const hLpx=v.hL*sc, eLpx=v.eL*sc;
+  const hHpx=v.hH*scH, eHpx=v.eH*scH;
+
+  // Ground
+  line(svg,60,GL,750,GL,{stroke:'#8a7a6a','stroke-width':'3'});
+  txt(svg,55,GL,'GL',{'text-anchor':'end','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#6b7c93'});
+
+  // Existing house elevation
+  rect(svg,ox,GL-hHpx,hLpx,hHpx,{fill:'#e8e0cc',stroke:'#1a1a2e','stroke-width':'2'});
+  // Roof
+  const ridgeX=ox+hLpx/2, ridgeY=GL-hHpx-Math.min(hHpx*0.22,45);
+  poly(svg,[[ox,GL-hHpx],[ridgeX,ridgeY],[ox+hLpx,GL-hHpx]],{fill:'#c8a878',stroke:'#1a1a2e','stroke-width':'2'});
+  // Windows
+  const winW=Math.min(hLpx*0.18,55), winH2=Math.min(hHpx*0.3,60);
+  const winY=GL-hHpx+hHpx*0.2;
+  [[ox+hLpx*0.15],[ox+hLpx*0.45]].forEach(([wx])=>{
+    rect(svg,wx,winY,winW,winH2,{fill:'#aed6e8',stroke:'#1a1a2e','stroke-width':'1.5'});
+    line(svg,wx+winW/2,winY,wx+winW/2,winY+winH2,{stroke:'#1a1a2e','stroke-width':'1'});
+    line(svg,wx,winY+winH2/2,wx+winW,winY+winH2/2,{stroke:'#1a1a2e','stroke-width':'1'});
+  });
+  // Door
+  const doorW=Math.min(hLpx*0.12,40);
+  rect(svg,ox+hLpx*0.6,GL-hHpx*0.55,doorW,hHpx*0.55,{fill:'#c8a060',stroke:'#1a1a2e','stroke-width':'1.5'});
+  txt(svg,ox+hLpx/2,GL-hHpx/2,'บ้านเดิม',{'text-anchor':'middle','font-size':'11','fill':'#888'});
+
+  // Extension elevation
+  const ex=ox+hLpx;
+  rect(svg,ex,GL-eHpx,eLpx,eHpx,{fill:'#d4edda',stroke:'#c0392b','stroke-width':'2.5'});
+  // Extension roof slope
+  const eRidgeY=GL-eHpx-Math.min(eHpx*0.12,25);
+  poly(svg,[[ex,GL-eHpx],[ex+eLpx/2,eRidgeY],[ex+eLpx,GL-eHpx]],{fill:'#98c898',stroke:'#c0392b','stroke-width':'2'});
+  // Windows extension
+  const eWinW=Math.min(eLpx*0.22,55);
+  [[ex+eLpx*0.2],[ex+eLpx*0.55]].forEach(([wx])=>{
+    rect(svg,wx,GL-eHpx+eHpx*0.2,eWinW,Math.min(eHpx*0.28,50),{fill:'#aed6e8',stroke:'#1e3a5f','stroke-width':'1.5'});
+    line(svg,wx+eWinW/2,GL-eHpx+eHpx*0.2,wx+eWinW/2,GL-eHpx+eHpx*0.2+Math.min(eHpx*0.28,50),{stroke:'#1e3a5f','stroke-width':'1'});
+  });
+  txt(svg,ex+eLpx/2,GL-eHpx/2,'ส่วนต่อเติม',{'text-anchor':'middle','font-size':'12','font-weight':'700','fill':'#c0392b'});
+
+  // Drain pipe
+  rect(svg,ex+eLpx-5,GL-eHpx,6,eHpx,{fill:'#4a8ab4',stroke:'#2a6a94','stroke-width':'1'});
+
+  // Dimensions
+  dim(svg,ox,GL+16,ox+hLpx,GL+16,`${v.hL} ม.`,-8);
+  dim(svg,ex,GL+16,ex+eLpx,GL+16,`${v.eL} ม.`,-8);
+  dim(svg,ox-22,GL-hHpx,ox-22,GL,`${v.hH} ม.`,-8);
+  dim(svg,ex+eLpx+22,GL-eHpx,ex+eLpx+22,GL,`${v.eH} ม.`,-8);
+
+  // Callout lines
+  const callouts=[
+    [ex+eLpx*0.3,GL-eHpx-15,'เมทัลชีทสีน้ำตาล',ex+eLpx*0.5,GL-eHpx-8],
+    [ex+eLpx*0.7,GL-eHpx+eHpx*0.4,'ผนังอิฐมวลเบาฉาบปูน',ex+eLpx+40,GL-eHpx+eHpx*0.3],
+  ];
+  callouts.forEach(([lx,ly,label,tx,ty])=>{
+    line(svg,lx,ly,tx,ty,{stroke:'#888','stroke-width':'1'});
+    txt(svg,tx+2,ty+4,label,{'font-size':'9','fill':'#6b7c93'});
+  });
+
+  document.getElementById('notes-elevation').innerHTML=`<h4>📌 หมายเหตุรูปด้าน</h4><ul>
+    <li>ความสูงส่วนต่อเติม <span class="dyn">${v.eH} ม.</span> ต่ำกว่าบ้านเดิม <span class="dyn">${(v.hH-v.eH).toFixed(1)} ม.</span></li>
+    <li>ความยาวส่วนต่อเติม <span class="dyn">${v.eL} ม.</span> (ต้องไม่เกินความยาวบ้านเดิม ${v.hL} ม.)</li>
+    <li>สีผนังนอกให้ match กับบ้านเดิม (ระบุสีในรายการประกอบแบบ)</li>
+    <li>ท่อระบายน้ำฝน PVC Ø100 มม. ติดตั้งชิดผนังด้านนอก</li>
+    <li>หน้าต่างอะลูมิเนียมบานเลื่อน ขนาด กว้าง 70 × สูง 110 ซม.</li></ul>`;
+}
+
+/* ─────────────────────────────────────────────
+   S01 STRUCTURE
+───────────────────────────────────────────── */
+function drawStructure(v) {
+  const svg = document.getElementById('svg-structure');
+  svg.innerHTML=''; addDefs(svg);
+
+  txt(svg,410,24,'แบบโครงสร้าง (STRUCTURAL DRAWING)',{'text-anchor':'middle','font-size':'14','font-weight':'700','fill':'#1e3a5f'});
+  txt(svg,410,40,'ฐานราก / เสา / คาน — SCALE 1:20',{'text-anchor':'middle','font-family':'Share Tech Mono,monospace','font-size':'9','fill':'#6b7c93'});
+
+  // ── FOOTING DETAIL (left side)
+  txt(svg,175,66,'รายละเอียดฐานราก',{'text-anchor':'middle','font-size':'12','font-weight':'700','fill':'#1e3a5f'});
+  txt(svg,175,80,'(FOOTING DETAIL)',{'text-anchor':'middle','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#6b7c93'});
+
+  const sc=120; // 1m = 120px at 1:20 (reduced for display)
+  const colPx=v.colSize*sc;
+  const footPx=v.footW*sc;
+  const footDpx=v.footD*sc*0.7; // compressed for display
+  const colH=100;
+  const cx=175, colTop=150, GL_s=colTop+colH;
+
+  // Soil
+  rect(svg,cx-footPx/2-20,GL_s+footDpx,footPx+40,35,{fill:'url(#soil)'});
+  txt(svg,cx,GL_s+footDpx+20,'ดินบดอัด',{'text-anchor':'middle','font-size':'9','fill':'#6b7c93'});
+
+  // Footing
+  rect(svg,cx-footPx/2,GL_s,footPx,footDpx,{fill:'url(#concrete)',stroke:'#1a1a2e','stroke-width':'2'});
+  // Rebar in footing
+  line(svg,cx-footPx/2+8,GL_s+footDpx*0.35,cx+footPx/2-8,GL_s+footDpx*0.35,{stroke:'#c0392b','stroke-width':'2.5'});
+  line(svg,cx-footPx/2+8,GL_s+footDpx*0.65,cx+footPx/2-8,GL_s+footDpx*0.65,{stroke:'#c0392b','stroke-width':'2.5'});
+  // Stirrups footing
+  [0.3,0.5,0.7].forEach(t=>{
+    const x=cx-footPx/2+footPx*t;
+    line(svg,x,GL_s+4,x,GL_s+footDpx-4,{stroke:'#c0392b','stroke-width':'1.5','stroke-dasharray':'3,3'});
+  });
+
+  // Column
+  rect(svg,cx-colPx/2,colTop,colPx,colH,{fill:'url(#rebar)',stroke:'#1a1a2e','stroke-width':'2'});
+  // Column rebar corners
+  const r=4;
+  [[cx-colPx/2+8,colTop+10],[cx+colPx/2-8,colTop+10],[cx-colPx/2+8,GL_s-10],[cx+colPx/2-8,GL_s-10]].forEach(([x,y])=>{
+    svg.appendChild(el('circle',{cx:x,cy:y,r,fill:'#c0392b'}));
+  });
+  // Stirrups column
+  [0.3,0.6].forEach(t=>{
+    rect(svg,cx-colPx/2+4,colTop+colH*t,colPx-8,16,{fill:'none',stroke:'#c0392b','stroke-width':'1.5'});
+  });
+
+  // Dimensions footing
+  dim(svg,cx-footPx/2-18,GL_s,cx-footPx/2-18,GL_s+footDpx,`${v.footD}ม.`,-6);
+  dim(svg,cx-footPx/2,GL_s+footDpx+18,cx+footPx/2,GL_s+footDpx+18,`${v.footW}ม.`);
+  dim(svg,cx-colPx/2,colTop+colH+18,cx+colPx/2,colTop+colH+18,`${v.colSize*100|0}ซม.`);
+  dim(svg,cx+footPx/2+16,colTop,cx+footPx/2+16,GL_s,'1.00ม.',-6);
+
+  // Notes footing
+  const noteY=GL_s+footDpx+50;
+  [
+    [`เสา: ${v.colSize*100|0}×${v.colSize*100|0} ซม.`,'#c0392b'],
+    ['เหล็กหลัก: DB12 จำนวน 4 เส้น','#c0392b'],
+    ['ปลอก: RB6 @ 0.20 ม.','#c0392b'],
+    [`ฐานราก: ${v.footW}×${v.footW}×${v.footD} ม.`,'#1e3a5f'],
+    ['เหล็กฐาน: DB12 @ 0.15ม. 2 ทิศทาง','#1e3a5f'],
+    ["คอนกรีต: fc' = 210 กก./ตร.ซม.",'#1e3a5f'],
+  ].forEach(([s,c],i)=>{
+    txt(svg,80,noteY+i*15,s,{'font-size':'9','fill':c});
+  });
+
+  // ── BEAM / LINTEL DETAIL (right side)
+  txt(svg,580,66,'รายละเอียดคาน Lintel',{'text-anchor':'middle','font-size':'12','font-weight':'700','fill':'#1e3a5f'});
+  txt(svg,580,80,'(BEAM SECTION)',{'text-anchor':'middle','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#6b7c93'});
+
+  const bx=460,by=100,bw=240,bh=130;
+  rect(svg,bx,by,bw,bh,{fill:'url(#rebar)',stroke:'#1a1a2e','stroke-width':'2.5'});
+  // Top rebar
+  [[bx+15,by+18],[bx+bw-15,by+18]].forEach(([x,y])=>{
+    svg.appendChild(el('circle',{cx:x,cy:y,r:'8',fill:'#c0392b',stroke:'white','stroke-width':'1'}));
+    txt(svg,x,y+3,'DB',{'text-anchor':'middle','font-size':'7','fill':'white','font-family':'Share Tech Mono,monospace'});
+  });
+  // Bottom rebar
+  [[bx+15,by+bh-18],[bx+bw-15,by+bh-18]].forEach(([x,y])=>{
+    svg.appendChild(el('circle',{cx:x,cy:y,r:'8',fill:'#c0392b',stroke:'white','stroke-width':'1'}));
+    txt(svg,x,y+3,'DB',{'text-anchor':'middle','font-size':'7','fill':'white','font-family':'Share Tech Mono,monospace'});
+  });
+  // Stirrups
+  rect(svg,bx+10,by+10,bw-20,bh-20,{fill:'none',stroke:'#5a8ab4','stroke-width':'2'});
+  [0.35,0.65].forEach(t=>{
+    rect(svg,bx+18,by+bh*t-8,bw-36,14,{fill:'none',stroke:'#5a8ab4','stroke-width':'1.5'});
+  });
+  // Dimensions beam
+  dim(svg,bx-18,by,bx-18,by+bh,'0.20ม.',-6);
+  dim(svg,bx,by+bh+18,bx+bw,by+bh+18,'0.15ม.');
+
+  // Labels
+  line(svg,bx+15,by+18,bx-10,by-8,{stroke:'#888','stroke-width':'1'});
+  txt(svg,bx-12,by-10,'DB12 บน 2 เส้น',{'text-anchor':'end','font-size':'9','fill':'#c0392b'});
+  line(svg,bx+15,by+bh-18,bx-10,by+bh+10,{stroke:'#888','stroke-width':'1'});
+  txt(svg,bx-12,by+bh+15,'DB12 ล่าง 2 เส้น',{'text-anchor':'end','font-size':'9','fill':'#c0392b'});
+  line(svg,bx+bw,by+bh/2,bx+bw+10,by+bh/2,{stroke:'#888','stroke-width':'1'});
+  txt(svg,bx+bw+12,by+bh/2+4,'ปลอก RB6@15',{'font-size':'9','fill':'#5a8ab4'});
+
+  // Beam schedule table
+  const tx=440,ty=260,tw=310,trH=18;
+  rect(svg,tx,ty,tw,120,{fill:'#f0f7f0',stroke:'#1e3a5f','stroke-width':'1'});
+  txt(svg,tx+tw/2,ty+14,'ตารางคาน (BEAM SCHEDULE)',{'text-anchor':'middle','font-size':'10','font-weight':'700','fill':'#1e3a5f'});
+  line(svg,tx,ty+18,tx+tw,ty+18,{stroke:'#1e3a5f','stroke-width':'1'});
+  const cols=['คาน','ขนาด (ม.)','เหล็กหลัก'];
+  cols.forEach((c,i)=>txt(svg,tx+10+i*100,ty+32,c,{'font-size':'9','fill':'#6b7c93','font-family':'Share Tech Mono,monospace'}));
+  line(svg,tx,ty+36,tx+tw,ty+36,{stroke:'#6b7c93','stroke-width':'0.5'});
+  const rows=[
+    ['B1','0.15×0.20','4-DB12'],
+    ['B2','0.20×0.30','4-DB16'],
+    [`Lintel`,'0.15×0.20','2-DB12 T&B'],
+  ];
+  rows.forEach((row,ri)=>{
+    row.forEach((c,ci)=>txt(svg,tx+10+ci*100,ty+52+ri*trH,c,{'font-size':'9','fill':ci===2?'#c0392b':'#333','font-family':'Share Tech Mono,monospace'}));
+    if(ri<rows.length-1) line(svg,tx,ty+36+(ri+1)*trH,tx+tw,ty+36+(ri+1)*trH,{stroke:'#6b7c93','stroke-width':'0.5'});
+  });
+  txt(svg,tx+8,ty+112,'ปลอกทุกคาน: RB6 @ 0.15 ม. ช่วงกลาง / @ 0.075 ม. ช่วงปลาย',{'font-size':'8','fill':'#888'});
+
+  document.getElementById('notes-structure').innerHTML=`<h4>📌 หมายเหตุโครงสร้าง</h4><ul>
+    <li>เสาขนาด <span class="dyn">${v.colSize*100|0}×${v.colSize*100|0} ซม.</span> เหล็กหลัก DB12 จำนวน 4 เส้น</li>
+    <li>ฐานรากขนาด <span class="dyn">${v.footW}×${v.footW} ม.</span> ลึก <span class="dyn">${v.footD} ม.</span></li>
+    <li>คอนกรีตทุกส่วน fc' = 210 กก./ตร.ซม. (กำลังอัดประลัย)</li>
+    <li>เหล็กเส้นกลม (RB) fy = 2,400 กก./ตร.ซม. | เหล็กข้ออ้อย (DB) fy = 4,000 กก./ตร.ซม.</li>
+    <li>แบบต้องมีวิศวกรโยธา (กว.) เซ็นรับรองก่อนยื่นขออนุญาต</li></ul>`;
+}
+
+/* ─────────────────────────────────────────────
+   S02 PILE DETAIL
+───────────────────────────────────────────── */
+function drawPile(v) {
+  const svg = document.getElementById('svg-pile');
+  svg.innerHTML=''; addDefs(svg);
+
+  const pileNames = { spun:'เสาเข็มสปัน (Spun Pile)', square:'เสาเข็มสี่เหลี่ยม (Square Pile)', bored:'เสาเข็มเจาะ (Bored Pile)' };
+  const pileName = pileNames[v.pileType];
+  const isSpun = v.pileType==='spun';
+  const isBored = v.pileType==='bored';
+  const isSquare = v.pileType==='square';
+
+  txt(svg,410,24,'รายละเอียดเสาเข็ม (PILE DETAIL)',{'text-anchor':'middle','font-size':'15','font-weight':'700','fill':'#1e3a5f'});
+  txt(svg,410,40,pileName,{'text-anchor':'middle','font-size':'10','font-family':'Share Tech Mono,monospace','fill':'#6b7c93'});
+
+  /* ── SCALE ── 1m = scPile px, pile drawn vertically */
+  const scPile = Math.min(280/v.pileLen, 28);
+  const dPx = v.pileDia/100 * scPile * 8;   // diameter in px (exaggerated for visibility)
+  const lenPx = v.pileLen * scPile;
+
+  /* ══════════════════════════════════════
+     LEFT PANEL — ELEVATION / SIDE VIEW
+  ══════════════════════════════════════ */
+  const cx = 170, groundY = 110;
+  txt(svg,cx,60,'รูปด้าน (ELEVATION)',{'text-anchor':'middle','font-size':'12','font-weight':'700','fill':'#1e3a5f'});
+  txt(svg,cx,76,'SCALE 1:20',{'text-anchor':'middle','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#6b7c93'});
+
+  // GL line
+  line(svg,60,groundY,310,groundY,{stroke:'#8a7a6a','stroke-width':'2.5'});
+  txt(svg,55,groundY,'GL',{'text-anchor':'end','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#6b7c93'});
+
+  // Soil layers
+  const soilColors=['#c4b49a','#b8a488','#ac9478','#a08468'];
+  const layerH=lenPx/4;
+  soilColors.forEach((c,i)=>{
+    rect(svg,60,groundY+i*layerH,250,layerH,{fill:c,opacity:'0.5'});
+    txt(svg,68,groundY+i*layerH+layerH/2+4,i===0?'ดินอ่อน (Soft Clay)':i===1?'ดินแข็งปานกลาง':i===2?'ดินแข็ง (Stiff Clay)':'ชั้นทราย (Sand)',{'font-size':'8','fill':'#6b5a4a'});
+  });
+  // Soil boundary lines
+  [1,2,3].forEach(i=>line(svg,60,groundY+i*layerH,310,groundY+i*layerH,{stroke:'#a09080','stroke-width':'0.8','stroke-dasharray':'6,4'}));
+
+  // Pile cap (pile cap on top)
+  const capH=16, capW=dPx+28;
+  rect(svg,cx-capW/2,groundY-capH,capW,capH,{fill:'url(#concrete)',stroke:'#1a1a2e','stroke-width':'2'});
+  txt(svg,cx,groundY-capH-4,'Pile Cap',{'text-anchor':'middle','font-size':'8','font-family':'Share Tech Mono,monospace','fill':'#1e3a5f'});
+
+  // Pile body
+  const pileTopY=groundY, pileBotY=groundY+lenPx;
+  if(isSpun) {
+    // Hollow spun — two side lines + tip
+    rect(svg,cx-dPx/2,pileTopY,dPx,lenPx,{fill:'#d8d0c0',stroke:'#1a1a2e','stroke-width':'2'});
+    // hollow core
+    rect(svg,cx-dPx/2+5,pileTopY+6,dPx-10,lenPx-16,{fill:'#bfb8ac',stroke:'#888','stroke-width':'1','stroke-dasharray':'4,3'});
+    // spiral prestress lines
+    for(let y=pileTopY+10;y<pileBotY-10;y+=18){
+      const s=el('path',{d:`M${cx-dPx/2+2},${y} Q${cx},${y-6} ${cx+dPx/2-2},${y}`,fill:'none',stroke:'#c0392b','stroke-width':'1','opacity':'0.7'});
+      svg.appendChild(s);
+    }
+    // tip
+    poly(svg,[[cx-dPx/2,pileBotY],[cx,pileBotY+18],[cx+dPx/2,pileBotY]],{fill:'#1a1a2e'});
+  } else if(isSquare) {
+    rect(svg,cx-dPx/2,pileTopY,dPx,lenPx,{fill:'#d0c8b8',stroke:'#1a1a2e','stroke-width':'2'});
+    // rebar in corners (schematic lines)
+    [[cx-dPx/2+5,pileTopY+5],[cx+dPx/2-5,pileTopY+5]].forEach(([rx])=>{
+      line(svg,rx,pileTopY+5,rx,pileBotY-10,{stroke:'#c0392b','stroke-width':'2'});
+    });
+    // stirrups
+    for(let y=pileTopY+14;y<pileBotY-14;y+=20){
+      rect(svg,cx-dPx/2+4,y,dPx-8,8,{fill:'none',stroke:'#c0392b','stroke-width':'1'});
+    }
+    poly(svg,[[cx-dPx/2,pileBotY],[cx,pileBotY+18],[cx+dPx/2,pileBotY]],{fill:'#1a1a2e'});
+  } else { // bored
+    rect(svg,cx-dPx/2,pileTopY,dPx,lenPx,{fill:'#d4ccc0',stroke:'#1a1a2e','stroke-width':'2','stroke-dasharray':'6,3'});
+    // rebar cage lines
+    [cx-dPx/2+6, cx+dPx/2-6].forEach(rx=>{
+      line(svg,rx,pileTopY+4,rx,pileBotY-6,{stroke:'#c0392b','stroke-width':'2'});
+    });
+    for(let y=pileTopY+14;y<pileBotY-14;y+=18){
+      rect(svg,cx-dPx/2+5,y,dPx-10,7,{fill:'none',stroke:'#c0392b','stroke-width':'1'});
+    }
+    // flat bottom
+    rect(svg,cx-dPx/2,pileBotY,dPx,6,{fill:'#888',stroke:'#1a1a2e','stroke-width':'1'});
+    txt(svg,cx,pileBotY+18,'ก้นหลุมเจาะ',{'text-anchor':'middle','font-size':'8','fill':'#888'});
+  }
+
+  // Depth dimension
+  const dimX=cx+dPx/2+22;
+  dim(svg,dimX,pileTopY,dimX,pileBotY,`${v.pileLen} ม.`,-8);
+
+  // Dia dimension
+  dim(svg,cx-dPx/2,groundY-capH-22,cx+dPx/2,groundY-capH-22,`Ø${v.pileDia} ซม.`);
+
+  // Column above cap
+  const colPxW=Math.max(dPx*0.55,18);
+  rect(svg,cx-colPxW/2,groundY-capH-40,colPxW,40,{fill:'url(#rebar)',stroke:'#1a1a2e','stroke-width':'1.5'});
+  txt(svg,cx,groundY-capH-44,'เสา',{'text-anchor':'middle','font-size':'8','fill':'#1e3a5f'});
+
+  /* ══════════════════════════════════════
+     CENTRE PANEL — CROSS SECTION
+  ══════════════════════════════════════ */
+  const sx=420, sy=200;
+  txt(svg,sx,60,'หน้าตัดเสาเข็ม',{'text-anchor':'middle','font-size':'12','font-weight':'700','fill':'#1e3a5f'});
+  txt(svg,sx,76,'(CROSS SECTION)',{'text-anchor':'middle','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#6b7c93'});
+
+  const r2=dPx*0.65; // radius for cross section
+
+  if(isSpun) {
+    svg.appendChild(el('circle',{cx:sx,cy:sy,r:r2,fill:'#d8d0c0',stroke:'#1a1a2e','stroke-width':'2'}));
+    svg.appendChild(el('circle',{cx:sx,cy:sy,r:r2*0.55,fill:'#c0b8a8',stroke:'#888','stroke-width':'1.5','stroke-dasharray':'4,3'}));
+    // prestress strands around ring
+    const nStrands=8;
+    for(let i=0;i<nStrands;i++){
+      const ang=i*Math.PI*2/nStrands;
+      const rx=sx+Math.cos(ang)*(r2*0.78), ry=sy+Math.sin(ang)*(r2*0.78);
+      svg.appendChild(el('circle',{cx:rx,cy:ry,r:'4',fill:'#c0392b',stroke:'white','stroke-width':'1'}));
+    }
+    txt(svg,sx,sy+r2+18,'Prestress Strand',{'text-anchor':'middle','font-size':'9','fill':'#c0392b'});
+    txt(svg,sx,sy+r2+30,`จำนวน 8 เส้น`,{'text-anchor':'middle','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#c0392b'});
+  } else if(isSquare) {
+    rect(svg,sx-r2,sy-r2,r2*2,r2*2,{fill:'#d0c8b8',stroke:'#1a1a2e','stroke-width':'2'});
+    // main rebar at corners
+    [[sx-r2+8,sy-r2+8],[sx+r2-8,sy-r2+8],[sx-r2+8,sy+r2-8],[sx+r2-8,sy+r2-8]].forEach(([rx,ry])=>{
+      svg.appendChild(el('circle',{cx:rx,cy:ry,r:'5',fill:'#c0392b',stroke:'white','stroke-width':'1'}));
+    });
+    // stirrup
+    rect(svg,sx-r2+5,sy-r2+5,r2*2-10,r2*2-10,{fill:'none',stroke:'#5a8ab4','stroke-width':'2'});
+    txt(svg,sx,sy+r2+18,'เหล็กหลัก 4 เส้น + ปลอก',{'text-anchor':'middle','font-size':'9','fill':'#c0392b'});
+    txt(svg,sx,sy+r2+30,`DB${v.pileDia>=35?'16':'12'} + RB6@20`,{'text-anchor':'middle','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#c0392b'});
+  } else { // bored
+    svg.appendChild(el('circle',{cx:sx,cy:sy,r:r2,fill:'#d4ccc0',stroke:'#1a1a2e','stroke-width':'2','stroke-dasharray':'6,3'}));
+    const nMain=6;
+    for(let i=0;i<nMain;i++){
+      const ang=i*Math.PI*2/nMain-Math.PI/2;
+      const rx=sx+Math.cos(ang)*(r2*0.72), ry=sy+Math.sin(ang)*(r2*0.72);
+      svg.appendChild(el('circle',{cx:rx,cy:ry,r:'5',fill:'#c0392b',stroke:'white','stroke-width':'1'}));
+    }
+    svg.appendChild(el('circle',{cx:sx,cy:sy,r:r2*0.72,fill:'none',stroke:'#5a8ab4','stroke-width':'2'}));
+    txt(svg,sx,sy+r2+18,'เหล็กหลัก 6 เส้น + เกลียวปลอก',{'text-anchor':'middle','font-size':'9','fill':'#c0392b'});
+    txt(svg,sx,sy+r2+30,`DB${v.pileDia>=40?'16':'12'} + RB9 Spiral@15`,{'text-anchor':'middle','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#c0392b'});
+  }
+
+  // Cross section diameter annotation
+  line(svg,sx-r2,sy,sx+r2,sy,{stroke:'#1e3a5f','stroke-width':'1','stroke-dasharray':'4,3'});
+  line(svg,sx,sy-r2,sx,sy+r2,{stroke:'#1e3a5f','stroke-width':'1','stroke-dasharray':'4,3'});
+  txt(svg,sx+r2+4,sy+4,`Ø${v.pileDia}`,{'font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#1e3a5f'});
+  txt(svg,sx+r2+4,sy+16,'ซม.',{'font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#1e3a5f'});
+
+  /* ══════════════════════════════════════
+     PILE CAP PLAN — pile arrangement
+  ══════════════════════════════════════ */
+  const px2=650, py2=200;
+  txt(svg,px2,60,'ผัง Pile Cap',{'text-anchor':'middle','font-size':'12','font-weight':'700','fill':'#1e3a5f'});
+  txt(svg,px2,76,'(PILE CAP PLAN)',{'text-anchor':'middle','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#6b7c93'});
+
+  const spacing=Math.max(v.pileDia/100*2.5, 0.6); // min 2.5D spacing
+  const capPad=v.pileDia/100*0.5;
+  const pR=Math.max(dPx*0.4,10);
+  const spPx=spacing*32;
+
+  // Pile positions based on count
+  let pilePositions=[];
+  if(v.pileCount===1) pilePositions=[[px2,py2]];
+  else if(v.pileCount===2) pilePositions=[[px2-spPx/2,py2],[px2+spPx/2,py2]];
+  else if(v.pileCount===3) pilePositions=[[px2,py2-spPx*0.55],[px2-spPx/2,py2+spPx*0.3],[px2+spPx/2,py2+spPx*0.3]];
+  else pilePositions=[[px2-spPx/2,py2-spPx/2],[px2+spPx/2,py2-spPx/2],[px2-spPx/2,py2+spPx/2],[px2+spPx/2,py2+spPx/2]];
+
+  // Pile cap rectangle
+  const allX=pilePositions.map(p=>p[0]), allY=pilePositions.map(p=>p[1]);
+  const capX1=Math.min(...allX)-pR-capPad*25, capY1=Math.min(...allY)-pR-capPad*25;
+  const capX2=Math.max(...allX)+pR+capPad*25, capY2=Math.max(...allY)+pR+capPad*25;
+  rect(svg,capX1,capY1,capX2-capX1,capY2-capY1,{fill:'#e8e0d0',stroke:'#1a1a2e','stroke-width':'2'});
+  txt(svg,px2,capY1-8,'Pile Cap',{'text-anchor':'middle','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#1e3a5f'});
+
+  // Column footprint in cap
+  const colCapW=22;
+  rect(svg,px2-colCapW/2,py2-colCapW/2,colCapW,colCapW,{fill:'url(#rebar)',stroke:'#c0392b','stroke-width':'2'});
+  // crosshairs
+  line(svg,px2-colCapW/2-8,py2,px2+colCapW/2+8,py2,{stroke:'#c0392b','stroke-width':'1','stroke-dasharray':'3,2'});
+  line(svg,px2,py2-colCapW/2-8,px2,py2+colCapW/2+8,{stroke:'#c0392b','stroke-width':'1','stroke-dasharray':'3,2'});
+
+  // Draw piles
+  pilePositions.forEach(([ppx,ppy],i)=>{
+    svg.appendChild(el('circle',{cx:ppx,cy:ppy,r:pR,fill:'#c8bfb0',stroke:'#1a1a2e','stroke-width':'2'}));
+    if(isSpun) svg.appendChild(el('circle',{cx:ppx,cy:ppy,r:pR*0.55,fill:'none',stroke:'#888','stroke-width':'1','stroke-dasharray':'3,2'}));
+    txt(svg,ppx,ppy+pR+14,`P${i+1}`,{'text-anchor':'middle','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#1e3a5f'});
+  });
+
+  // Spacing dimension (if >1 pile)
+  if(v.pileCount>=2) {
+    const [ax,ay]=pilePositions[0],[bx,by]=pilePositions[1];
+    line(svg,ax,ay-pR-5,bx,by-pR-5,{stroke:'#1e3a5f','stroke-width':'1.5','marker-start':'url(#dimArrowR)','marker-end':'url(#dimArrow)'});
+    txt(svg,(ax+bx)/2,ay-pR-8,`${spacing.toFixed(2)} ม.`,{'text-anchor':'middle','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#1e3a5f'});
+  }
+
+  /* ══════════════════════════════════════
+     PILE SCHEDULE TABLE
+  ══════════════════════════════════════ */
+  const tblX=60, tblY=440, tblW=680, rowH=20;
+  rect(svg,tblX,tblY,tblW,20,{fill:'#1e3a5f'});
+  txt(svg,tblX+tblW/2,tblY+14,'ตารางเสาเข็ม (PILE SCHEDULE)',{'text-anchor':'middle','font-size':'11','font-weight':'700','fill':'white'});
+
+  const headers=['รายการ','ประเภท','Ø/หน้าตัด (ซม.)','ความยาว (ม.)','จำนวน/ฐาน','จำนวนฐาน','หมายเหตุ'];
+  const colWs=[80,130,110,90,90,80,100];
+  let cx2=tblX;
+  headers.forEach((h,i)=>{
+    rect(svg,cx2,tblY+20,colWs[i],rowH,{fill:'#eaf0f8',stroke:'#1a1a2e','stroke-width':'0.8'});
+    txt(svg,cx2+colWs[i]/2,tblY+33,h,{'text-anchor':'middle','font-size':'8','font-family':'Share Tech Mono,monospace','fill':'#1e3a5f'});
+    cx2+=colWs[i];
+  });
+
+  // Estimate number of piles needed
+  const numPads = Math.ceil((v.eW/2.5)+1) * Math.ceil((v.eL/2.5)+1);
+  const totalPiles = numPads * v.pileCount;
+  const rowData=['P1',pileName.split('(')[0].trim(),`Ø${v.pileDia}`,`${v.pileLen.toFixed(1)}`,`${v.pileCount}`,`${numPads}`,`รวม ${totalPiles} ต้น`];
+  cx2=tblX;
+  rowData.forEach((d,i)=>{
+    rect(svg,cx2,tblY+40,colWs[i],rowH,{fill:'#fff',stroke:'#1a1a2e','stroke-width':'0.8'});
+    txt(svg,cx2+colWs[i]/2,tblY+53,d,{'text-anchor':'middle','font-size':'9','fill':i===6?'#c0392b':'#1a1a2e','font-family':'Share Tech Mono,monospace'});
+    cx2+=colWs[i];
+  });
+
+  // Capacity note
+  const capTon = isSpun ? Math.round(v.pileDia*v.pileLen*0.22) : isSquare ? Math.round(v.pileDia*v.pileLen*0.18) : Math.round(v.pileDia*v.pileLen*0.15);
+  txt(svg,tblX,tblY+76,`* กำลังรับน้ำหนักโดยประมาณ: ${capTon} ตัน/ต้น (ต้องคำนวณจริงโดยวิศวกร)`,{'font-size':'8.5','fill':'#c0392b'});
+
+  // ── Build notes
+  const typeDesc = {
+    spun:'เสาเข็มสปัน ผลิตสำเร็จจากโรงงาน ตอกด้วยเครื่องตอกเข็ม ราคาประหยัด เหมาะกับพื้นที่ไม่จำกัด',
+    square:'เสาเข็มสี่เหลี่ยม รับน้ำหนักได้มาก ตอกด้วยเครื่องตอก เสียงดัง สั่นสะเทือนสูง',
+    bored:'เสาเข็มเจาะ ไม่มีการสั่นสะเทือน เหมาะกับพื้นที่แคบหรืออาคารข้างเคียงใกล้ แต่ราคาสูงกว่า'
+  };
+
+  document.getElementById('notes-pile').innerHTML=`<h4>📌 หมายเหตุเสาเข็ม</h4><ul>
+    <li>ประเภท: <span class="dyn">${pileName}</span> — ${typeDesc[v.pileType]}</li>
+    <li>ขนาด <span class="dyn">Ø${v.pileDia} ซม.</span> ยาว <span class="dyn">${v.pileLen} ม.</span> จำนวน <span class="dyn">${v.pileCount} ต้น/ฐาน</span></li>
+    <li>ระยะห่างระหว่างเสาเข็ม ≥ <span class="dyn">${spacing.toFixed(2)} ม.</span> (2.5 เท่าของเส้นผ่าศูนย์กลาง)</li>
+    <li>กำลังรับน้ำหนักโดยประมาณ <span class="dyn">${capTon} ตัน/ต้น</span> — ต้องทดสอบดิน (Soil Test) และคำนวณโดยวิศวกรจริง</li>
+    <li>${isBored?'เสาเข็มเจาะ: ต้องส่งตรวจ Integrity Test ทุกต้น':'เสาเข็มตอก: ต้องบันทึก Pile Driving Record ทุกต้น'}</li>
+    <li>Pile Cap หนา ≥ 0.30 ม. เหล็กล่าง DB12 @ 0.15 ม. ทั้ง 2 ทิศทาง</li></ul>`;
+}
+
+/* ─────────────────────────────────────────────
+   Date helper
+───────────────────────────────────────────── */
+function formatThaiDate(isoStr) {
+  const thMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  let d;
+  if (isoStr) { d = new Date(isoStr); } else { d = new Date(); }
+  const day = d.getDate();
+  const mon = thMonths[d.getMonth()];
+  const yearBE = d.getFullYear() + 543;
+  return `${day} ${mon} ${yearBE}`;
+}
+
+/* ─────────────────────────────────────────────
+   BOQ global state + editable table
+───────────────────────────────────────────── */
+let boqData = null;          // initialized on first drawBOQ call
+let boqInited = false;
+
+function initBoqData(v) {
+  const area    = v.eW * v.eL;
+  const perim   = 2*(v.eW + v.eL);
+  const wallA   = perim * v.eH;
+  const roofA   = area * 1.15;
+  const numPads = Math.ceil((v.eW/2.5)+1) * Math.ceil((v.eL/2.5)+1);
+  const totalPiles = numPads * v.pileCount;
+  const pileTypeName = {spun:'เสาเข็มสปัน',square:'เสาเข็มสี่เหลี่ยม',bored:'เสาเข็มเจาะ'}[v.pileType];
+
+  // ── Estimated material quantities ──
+  // Concrete volume estimate (m3): columns + beams + slab + pile caps
+  const colVol  = numPads * (v.colSize*v.colSize) * v.eH;          // m3
+  const beamVol = perim * 0.15 * 0.20;                             // m3
+  const slabVol = area * 0.12;                                     // m3
+  const capVol  = numPads * (v.footW*v.footW) * 0.30;              // m3
+  const concVol = +(colVol+beamVol+slabVol+capVol).toFixed(2);    // total m3
+  // Per 1 m3 concrete (fc'210): cement ~7 bags(50kg), rock ~1.1 m3, sand ~0.55 m3
+  const cementBags = Math.ceil(concVol * 7);
+  const rockVol    = +(concVol * 1.1).toFixed(2);
+  const sandVol    = +(concVol * 0.55).toFixed(2);
+  // Rebar estimate: ~120 kg per m3 of structural concrete
+  const rebarKg    = Math.ceil(concVol * 120);
+  const rebarDB    = Math.ceil(rebarKg*0.7);  // deformed (main)
+  const rebarRB    = Math.ceil(rebarKg*0.3);  // round (stirrup/temp)
+  const formworkA  = +((perim*v.eH*0.3) + (area*0.2) + numPads*2.5).toFixed(1); // m2 of forms
+  const tieWireKg  = Math.ceil(rebarKg*0.015);
+
+  // Masonry: AAC block 10cm — 8.33 blocks/m2 (0.60×0.20)
+  const blockPcs   = Math.ceil(wallA * 8.5);
+  const thinMortar = Math.ceil(wallA * 0.05 * 20); // bags of thin-bed mortar (~20kg)
+  const renderArea = wallA * 2;                      // both faces
+  const renderMortarBags = Math.ceil(renderArea * 0.025 * 20/20); // plaster bags
+  const renderSand = +(renderArea * 0.02).toFixed(2);
+
+  // Roof
+  const purlinM    = +(roofA * 2.2).toFixed(1);  // m of C-purlin
+  const sheetA     = +(roofA * 1.05).toFixed(1); // metal sheet incl overlap
+  const insulA     = +(roofA).toFixed(1);
+  const screwPcs   = Math.ceil(roofA * 8);
+  const ridgeM     = +(v.eW + 1).toFixed(1);
+
+  // Floor tile 60x60 = 2.78 pcs/m2
+  const tilePcs    = Math.ceil(area * 2.85);
+  const groutKg    = Math.ceil(area * 0.5);
+  const tileAdhBags= Math.ceil(area * 0.25);
+
+  // Paint
+  const extPaintA  = wallA * 0.6;
+  const intPaintA  = wallA * 0.4 + area;
+  const extPaintGal= Math.ceil(extPaintA*2/35);  // 1 gal ~35 m2/2coat
+  const intPaintGal= Math.ceil(intPaintA*2/35);
+  const primerGal  = Math.ceil((extPaintA+intPaintA)/35);
+
+  // Electrical
+  const wireM      = Math.ceil(area * 6);   // m of cable
+  const conduitM   = Math.ceil(area * 3);
+  const nLights    = area<15?2:area<30?4:6;
+  const nOutlets   = 4;
+
+  // Each row: { id, secId, no, desc, unit, qty, mat, labor, note }
+  return [
+    /* ───── 1. งานเตรียมการและรื้อถอน ───── */
+    { id:'s1', isSec:true, label:'1. งานเตรียมการและรื้อถอน' },
+    { id:'r1_1', secId:'s1', no:'1.1', desc:'รื้อถอนผนังเดิม + เจาะช่องประตูเชื่อม', unit:'ที่', qty:1, mat:0, labor:3500, note:'ค่าแรง+ขนเศษ' },
+    { id:'r1_2', secId:'s1', no:'1.2', desc:'ขุดดินหลุมฐานราก', unit:'ลบ.ม.', qty:+(numPads*v.footW*v.footW*v.footD).toFixed(2), mat:0, labor:350, note:'ขุดด้วยแรงคน' },
+    { id:'r1_3', secId:'s1', no:'1.3', desc:'ทรายหยาบรองก้นหลุม + รองพื้น หนา 5-10ซม.', unit:'ลบ.ม.', qty:+(area*0.08).toFixed(2), mat:420, labor:150, note:'' },
+    { id:'r1_4', secId:'s1', no:'1.4', desc:'แผ่นพลาสติกรองพื้นกันความชื้น', unit:'ตร.ม.', qty:+area.toFixed(1), mat:15, labor:10, note:'PE sheet' },
+    { id:'r1_5', secId:'s1', no:'1.5', desc:'บดอัดดิน/ปรับระดับพื้น', unit:'ตร.ม.', qty:+area.toFixed(1), mat:0, labor:60, note:'' },
+
+    /* ───── 2. งานเสาเข็ม ───── */
+    { id:'s2', isSec:true, label:`2. งานเสาเข็ม — ${pileTypeName} Ø${v.pileDia}ซม.` },
+    { id:'r2_1', secId:'s2', no:'2.1', desc:`${pileTypeName} Ø${v.pileDia}ซม. ยาว ${v.pileLen}ม. (ค่าเสาเข็ม)`, unit:'ต้น', qty:totalPiles, mat:+(v.rPile*0.82).toFixed(0), labor:0, note:`${numPads}ฐาน×${v.pileCount}ต้น` },
+    { id:'r2_2', secId:'s2', no:'2.2', desc:'ค่าตอก/เจาะเสาเข็ม + เคลื่อนย้ายปั้นจั่น', unit:'ต้น', qty:totalPiles, mat:0, labor:+(v.rPile*0.18).toFixed(0), note:'' },
+    { id:'r2_3', secId:'s2', no:'2.3', desc:'ตัดหัวเสาเข็ม + เตรียมเหล็กเดือย', unit:'ต้น', qty:totalPiles, mat:80, labor:200, note:'' },
+
+    /* ───── 3. งานคอนกรีต (วัสดุแยกชนิด) ───── */
+    { id:'s3', isSec:true, label:'3. งานคอนกรีตและส่วนผสม (fc′ 210 ksc)' },
+    { id:'r3_1', secId:'s3', no:'3.1', desc:'ปูนซีเมนต์ปอร์ตแลนด์ Type1 (50กก./ถุง)', unit:'ถุง', qty:cementBags, mat:175, labor:0, note:'งานโครงสร้าง' },
+    { id:'r3_2', secId:'s3', no:'3.2', desc:'หินย่อย เบอร์ 1-2', unit:'ลบ.ม.', qty:rockVol, mat:480, labor:0, note:'' },
+    { id:'r3_3', secId:'s3', no:'3.3', desc:'ทรายหยาบสำหรับผสมคอนกรีต', unit:'ลบ.ม.', qty:sandVol, mat:420, labor:0, note:'' },
+    { id:'r3_4', secId:'s3', no:'3.4', desc:'น้ำยาผสมคอนกรีต (ถ้าใช้)', unit:'ลิตร', qty:Math.ceil(concVol*2), mat:45, labor:0, note:'optional' },
+    { id:'r3_5', secId:'s3', no:'3.5', desc:'ค่าแรงผสม+เท+จี้คอนกรีต', unit:'ลบ.ม.', qty:concVol, mat:0, labor:550, note:`รวม ${concVol} ลบ.ม.` },
+    { id:'r3_6', secId:'s3', no:'3.6', desc:'※ ทางเลือก: คอนกรีตผสมเสร็จ (แทนข้อ 3.1-3.5)', unit:'ลบ.ม.', qty:0, mat:2050, labor:350, note:'ใส่ qty ถ้าใช้ Ready-mix' },
+
+    /* ───── 4. งานเหล็กเสริม ───── */
+    { id:'s4', isSec:true, label:'4. งานเหล็กเสริมและแบบหล่อ' },
+    { id:'r4_1', secId:'s4', no:'4.1', desc:'เหล็กข้ออ้อย SD40 (DB12, DB16) เหล็กหลัก', unit:'กก.', qty:rebarDB, mat:25, labor:0, note:'~70% ของเหล็กรวม' },
+    { id:'r4_2', secId:'s4', no:'4.2', desc:'เหล็กเส้นกลม SR24 (RB6, RB9) ปลอก/เหล็กยึด', unit:'กก.', qty:rebarRB, mat:24, labor:0, note:'' },
+    { id:'r4_3', secId:'s4', no:'4.3', desc:'ลวดผูกเหล็ก', unit:'กก.', qty:tieWireKg, mat:45, labor:0, note:'' },
+    { id:'r4_4', secId:'s4', no:'4.4', desc:'ค่าแรงดัด+ผูกเหล็ก', unit:'กก.', qty:rebarKg, mat:0, labor:8, note:`รวม ${rebarKg} กก.` },
+    { id:'r4_5', secId:'s4', no:'4.5', desc:'ไม้แบบ + ไม้ค้ำยัน (ไม้อัด/ไม้เนื้ออ่อน)', unit:'ตร.ม.', qty:formworkA, mat:120, labor:0, note:'หมุนเวียนใช้ได้' },
+    { id:'r4_6', secId:'s4', no:'4.6', desc:'ค่าแรงประกอบ+ถอดแบบหล่อ', unit:'ตร.ม.', qty:formworkA, mat:0, labor:90, note:'' },
+
+    /* ───── 5. งานก่อผนัง ───── */
+    { id:'s5', isSec:true, label:'5. งานก่อผนังอิฐมวลเบาและฉาบปูน' },
+    { id:'r5_1', secId:'s5', no:'5.1', desc:'อิฐมวลเบา AAC หนา 10ซม. (0.20×0.60ม.)', unit:'ก้อน', qty:blockPcs, mat:32, labor:0, note:`~8.5 ก้อน/ตร.ม.` },
+    { id:'r5_2', secId:'s5', no:'5.2', desc:'ปูนก่อมวลเบาสำเร็จรูป (Thin-bed)', unit:'ถุง', qty:thinMortar, mat:135, labor:0, note:'' },
+    { id:'r5_3', secId:'s5', no:'5.3', desc:'เหล็กหนวดกุ้ง/เสาเอ็น-คานทับหลัง', unit:'ตร.ม.', qty:+wallA.toFixed(1), mat:35, labor:25, note:'เสริมความแข็งแรง' },
+    { id:'r5_4', secId:'s5', no:'5.4', desc:'ค่าแรงก่อผนัง', unit:'ตร.ม.', qty:+wallA.toFixed(1), mat:0, labor:180, note:'' },
+    { id:'r5_5', secId:'s5', no:'5.5', desc:'ปูนฉาบสำเร็จรูป (ฉาบ 2 หน้า)', unit:'ถุง', qty:renderMortarBags, mat:115, labor:0, note:`ฉาบ ${renderArea.toFixed(0)} ตร.ม.` },
+    { id:'r5_6', secId:'s5', no:'5.6', desc:'ค่าแรงฉาบปูนเรียบ 2 หน้า', unit:'ตร.ม.', qty:+renderArea.toFixed(1), mat:0, labor:130, note:'' },
+
+    /* ───── 6. งานหลังคา ───── */
+    { id:'s6', isSec:true, label:'6. งานโครงหลังคาและมุงหลังคา' },
+    { id:'r6_1', secId:'s6', no:'6.1', desc:'เหล็กกล่อง/C-Line ชุบสังกะสี (แป+จันทัน)', unit:'ม.', qty:purlinM, mat:95, labor:0, note:'' },
+    { id:'r6_2', secId:'s6', no:'6.2', desc:'ค่าแรงประกอบโครงหลังคาเหล็ก', unit:'ตร.ม.', qty:+roofA.toFixed(1), mat:0, labor:280, note:'รวมเชื่อม' },
+    { id:'r6_3', secId:'s6', no:'6.3', desc:'แผ่นเมทัลชีท 0.47มม. เคลือบสี', unit:'ตร.ม.', qty:sheetA, mat:280, labor:0, note:'รวมเผื่อทับซ้อน' },
+    { id:'r6_4', secId:'s6', no:'6.4', desc:'ฉนวนกันความร้อน PE Foam หนา 5มม.', unit:'ตร.ม.', qty:insulA, mat:65, labor:0, note:'' },
+    { id:'r6_5', secId:'s6', no:'6.5', desc:'สกรูยึดเมทัลชีท + แหวนยาง', unit:'ตัว', qty:screwPcs, mat:4, labor:0, note:'' },
+    { id:'r6_6', secId:'s6', no:'6.6', desc:'ครอบสันหลังคา + ครอบข้าง', unit:'ม.', qty:ridgeM, mat:180, labor:0, note:'' },
+    { id:'r6_7', secId:'s6', no:'6.7', desc:'ค่าแรงมุงหลังคา+ติดตั้งครอบ', unit:'ตร.ม.', qty:+roofA.toFixed(1), mat:0, labor:120, note:'' },
+    { id:'r6_8', secId:'s6', no:'6.8', desc:'รางน้ำฝนสังกะสี/PVC Ø150มม.', unit:'ม.', qty:+(v.eL*2).toFixed(1), mat:180, labor:70, note:'' },
+    { id:'r6_9', secId:'s6', no:'6.9', desc:'ท่อน้ำฝน PVC Ø75-100มม. + ข้องอ', unit:'ต้น', qty:2, mat:550, labor:250, note:'' },
+
+    /* ───── 7. งานพื้นกระเบื้อง ───── */
+    { id:'s7', isSec:true, label:'7. งานปูพื้นกระเบื้อง' },
+    { id:'r7_1', secId:'s7', no:'7.1', desc:'กระเบื้องพอร์ซเลน 60×60ซม. Grade A', unit:'แผ่น', qty:tilePcs, mat:95, labor:0, note:`~2.85 แผ่น/ตร.ม.` },
+    { id:'r7_2', secId:'s7', no:'7.2', desc:'กาวซีเมนต์ปูกระเบื้อง', unit:'ถุง', qty:tileAdhBags, mat:175, labor:0, note:'' },
+    { id:'r7_3', secId:'s7', no:'7.3', desc:'ยาแนวกระเบื้อง (Grout)', unit:'กก.', qty:groutKg, mat:55, labor:0, note:'' },
+    { id:'r7_4', secId:'s7', no:'7.4', desc:'ค่าแรงปูกระเบื้อง+ยาแนว', unit:'ตร.ม.', qty:+area.toFixed(1), mat:0, labor:280, note:'' },
+    { id:'r7_5', secId:'s7', no:'7.5', desc:'บัวเชิงผนังกระเบื้อง', unit:'ม.', qty:+perim.toFixed(1), mat:45, labor:35, note:'' },
+
+    /* ───── 8. งานสี ───── */
+    { id:'s8', isSec:true, label:'8. งานสี' },
+    { id:'r8_1', secId:'s8', no:'8.1', desc:'สีรองพื้นปูนใหม่กันด่าง', unit:'แกลลอน', qty:primerGal, mat:850, labor:0, note:'' },
+    { id:'r8_2', secId:'s8', no:'8.2', desc:'สีจริงภายนอก อะคริลิก 100% (2รอบ)', unit:'แกลลอน', qty:extPaintGal, mat:1250, labor:0, note:'กันเชื้อรา' },
+    { id:'r8_3', secId:'s8', no:'8.3', desc:'สีจริงภายใน เช็ดล้างได้ (2รอบ)', unit:'แกลลอน', qty:intPaintGal, mat:950, labor:0, note:'' },
+    { id:'r8_4', secId:'s8', no:'8.4', desc:'ค่าแรงทาสีภายนอก', unit:'ตร.ม.', qty:+extPaintA.toFixed(1), mat:0, labor:45, note:'รองพื้น+2รอบ' },
+    { id:'r8_5', secId:'s8', no:'8.5', desc:'ค่าแรงทาสีภายใน', unit:'ตร.ม.', qty:+intPaintA.toFixed(1), mat:0, labor:40, note:'' },
+
+    /* ───── 9. งานประตู-หน้าต่าง ───── */
+    { id:'s9', isSec:true, label:'9. งานประตูและหน้าต่าง' },
+    { id:'r9_1', secId:'s9', no:'9.1', desc:'ประตูไม้เนื้อแข็งบานทึบ 90×200ซม.', unit:'บาน', qty:1, mat:3500, labor:0, note:'' },
+    { id:'r9_2', secId:'s9', no:'9.2', desc:'วงกบประตู + ชุดบานพับ+กลอน+มือจับ', unit:'ชุด', qty:1, mat:1800, labor:0, note:'' },
+    { id:'r9_3', secId:'s9', no:'9.3', desc:'หน้าต่างอะลูมิเนียมบานเลื่อน 70×110ซม.', unit:'ชุด', qty:2, mat:3500, labor:0, note:'พร้อมกระจก+มุ้ง' },
+    { id:'r9_4', secId:'s9', no:'9.4', desc:'ค่าแรงติดตั้งประตู+หน้าต่าง', unit:'ชุด', qty:3, mat:0, labor:1200, note:'' },
+    { id:'r9_5', secId:'s9', no:'9.5', desc:'ซิลิโคน+โฟมยาแนวรอบวงกบ', unit:'ชุด', qty:3, mat:180, labor:0, note:'' },
+
+    /* ───── 10. งานไฟฟ้า ───── */
+    { id:'s10', isSec:true, label:'10. งานระบบไฟฟ้า' },
+    { id:'r10_1', secId:'s10', no:'10.1', desc:'สายไฟ THW/IEC01 2.5sq.mm.', unit:'ม.', qty:wireM, mat:18, labor:0, note:'' },
+    { id:'r10_2', secId:'s10', no:'10.2', desc:'ท่อร้อยสาย PVC สีขาว Ø½นิ้ว + ข้อต่อ', unit:'ม.', qty:conduitM, mat:22, labor:0, note:'' },
+    { id:'r10_3', secId:'s10', no:'10.3', desc:'ดวงโคม LED Downlight 9-12W', unit:'ชุด', qty:nLights, mat:320, labor:0, note:'' },
+    { id:'r10_4', secId:'s10', no:'10.4', desc:'เต้ารับคู่มีกราวด์ + ฝา', unit:'จุด', qty:nOutlets, mat:180, labor:0, note:'' },
+    { id:'r10_5', secId:'s10', no:'10.5', desc:'สวิตช์ไฟ + ฝา', unit:'จุด', qty:2, mat:150, labor:0, note:'' },
+    { id:'r10_6', secId:'s10', no:'10.6', desc:'เบรกเกอร์ลูกย่อย 16A เพิ่มในตู้เดิม', unit:'ตัว', qty:1, mat:250, labor:0, note:'' },
+    { id:'r10_7', secId:'s10', no:'10.7', desc:'ค่าแรงเดินสาย+ติดตั้งอุปกรณ์ไฟฟ้า', unit:'จุด', qty:nLights+nOutlets+2, mat:0, labor:350, note:'' },
+
+    /* ───── 11. งานประปา-สุขาภิบาล ───── */
+    { id:'s11', isSec:true, label:'11. งานระบบประปาและสุขาภิบาล' },
+    { id:'r11_1', secId:'s11', no:'11.1', desc:'ท่อน้ำดี PPR Ø½-¾นิ้ว + ข้อต่อ', unit:'ม.', qty:12, mat:65, labor:0, note:'ต่อขยายจากเดิม' },
+    { id:'r11_2', secId:'s11', no:'11.2', desc:'ท่อน้ำทิ้ง/ระบาย PVC Ø2-4นิ้ว + ข้อต่อ', unit:'ม.', qty:8, mat:85, labor:0, note:'' },
+    { id:'r11_3', secId:'s11', no:'11.3', desc:'ค่าแรงเดินท่อประปา+ท่อน้ำทิ้ง', unit:'งาน', qty:1, mat:0, labor:2500, note:'' },
+
+    /* ───── 12. งานเบ็ดเตล็ด ───── */
+    { id:'s12', isSec:true, label:'12. งานเบ็ดเตล็ดและทำความสะอาด' },
+    { id:'r12_1', secId:'s12', no:'12.1', desc:'ขนย้ายเศษวัสดุออกนอกพื้นที่', unit:'เที่ยว', qty:3, mat:0, labor:1500, note:'' },
+    { id:'r12_2', secId:'s12', no:'12.2', desc:'ทำความสะอาดส่งมอบงาน (Big Cleaning)', unit:'งาน', qty:1, mat:300, labor:1500, note:'' },
+    { id:'r12_3', secId:'s12', no:'12.3', desc:'วัสดุสิ้นเปลือง (ตะปู/น็อต/เทป ฯลฯ)', unit:'เหมา', qty:1, mat:2500, labor:0, note:'' },
+  ];
+}
+
+// save a field edit into boqData
+function boqEdit(id, field, val) {
+  const row = boqData.find(r=>r.id===id);
+  if (!row) return;
+  if (field==='label') { row.label = val; }
+  else if (field==='desc') { row.desc = val; }
+  else if (field==='unit') { row.unit = val; }
+  else if (field==='note') { row.note = val; }
+  else { const n=parseFloat(val.replace(/,/g,'')); if (!isNaN(n)) row[field]=n; }
+  renderBOQ();   // re-render totals only (not re-init)
+  // refresh dependent reports if visible
+  refreshReports();
+}
+
+// Override state for contingency / overhead.
+// mode: 'pct' = use percentage, 'fixed' = use fixed baht amount.
+// pctVal / fixedVal hold the editable values; slider stays source for pct default.
+let contingOverride = { mode:'pct', pctVal:null, fixedVal:0 };
+let overheadOverride = { mode:'pct', pctVal:null, fixedVal:0 };
+
+// shared totals calculation used by BOQ + payment + compare
+function boqTotals() {
+  const v = getVals();
+  let totalMat=0, totalLabor=0;
+  if (boqData) boqData.forEach(r=>{ if(!r.isSec){ totalMat+=r.qty*(+r.mat); totalLabor+=r.qty*(+r.labor); }});
+  const sub = totalMat+totalLabor;
+
+  // Contingency
+  const contPct = contingOverride.pctVal!==null ? contingOverride.pctVal : v.conting;
+  const contingAmt = contingOverride.mode==='fixed'
+    ? contingOverride.fixedVal
+    : sub*contPct/100;
+  const contingPctShown = contingOverride.mode==='fixed'
+    ? (sub>0 ? contingAmt/sub*100 : 0)
+    : contPct;
+
+  // Overhead (on sub + contingency)
+  const baseForOh = sub + contingAmt;
+  const ohPct = overheadOverride.pctVal!==null ? overheadOverride.pctVal : v.overhead;
+  const oh = overheadOverride.mode==='fixed'
+    ? overheadOverride.fixedVal
+    : baseForOh*ohPct/100;
+  const ohPctShown = overheadOverride.mode==='fixed'
+    ? (baseForOh>0 ? oh/baseForOh*100 : 0)
+    : ohPct;
+
+  const beforeVat = sub+contingAmt+oh;
+  const vat = beforeVat*0.07;
+  const grand = beforeVat+vat;
+  return { v, totalMat, totalLabor, sub, contingAmt, oh, beforeVat, vat, grand,
+    contingPctShown, ohPctShown,
+    contMode: contingOverride.mode, ohMode: overheadOverride.mode,
+    area: v.eW*v.eL, perSqm: grand/(v.eW*v.eL) };
+}
+
+// edit handlers for the two adjustable rows
+function setContingMode(mode){ contingOverride.mode=mode; renderBOQ(); refreshReports(); }
+function setOverheadMode(mode){ overheadOverride.mode=mode; renderBOQ(); refreshReports(); }
+function editConting(field, val){
+  const n=parseFloat((val||'').replace(/,/g,''));
+  if(isNaN(n)){ renderBOQ(); return; }
+  if(field==='pct') contingOverride.pctVal=n;
+  else contingOverride.fixedVal=n;
+  renderBOQ(); refreshReports();
+}
+function editOverhead(field, val){
+  const n=parseFloat((val||'').replace(/,/g,''));
+  if(isNaN(n)){ renderBOQ(); return; }
+  if(field==='pct') overheadOverride.pctVal=n;
+  else overheadOverride.fixedVal=n;
+  renderBOQ(); refreshReports();
+}
+
+function refreshReports() {
+  if (document.getElementById('tab-payment').classList.contains('active')) renderPayment();
+  if (document.getElementById('tab-compare').classList.contains('active')) renderCompare();
+  if (document.getElementById('tab-boqpro').classList.contains('active')) renderBOQPro();
+  if (document.getElementById('tab-quote').classList.contains('active')) renderQuote();
+  if (document.getElementById('tab-contract').classList.contains('active')) renderContract();
+  if (document.getElementById('tab-invoice').classList.contains('active')) renderInvoice();
+  if (document.getElementById('tab-checklist').classList.contains('active')) renderChecklist();
+}
+
+// delete a row
+function boqDel(id) {
+  boqData = boqData.filter(r=>r.id!==id);
+  renderBOQ();
+}
+
+/* ─────────────────────────────────────────────
+   ค้นราคาวัสดุจากร้านภายนอก (เปิดแท็บใหม่)
+───────────────────────────────────────────── */
+const PRICE_STORES = [
+  { name:'ไทวัสดุ',  url:q=>`https://www.thaiwatsadu.com/th/search?q=${encodeURIComponent(q)}`, color:'#e30613' },
+  { name:'โฮมโปร',  url:q=>`https://www.homepro.co.th/search?q=${encodeURIComponent(q)}`,      color:'#f7941e' },
+  { name:'ดูโฮม',   url:q=>`https://www.dohome.co.th/th/search?q=${encodeURIComponent(q)}`,    color:'#0066b3' },
+  { name:'GlobalH', url:q=>`https://www.globalhouse.co.th/product?keyword=${encodeURIComponent(q)}`, color:'#e2001a' },
+];
+
+// clean a description into a short search keyword
+function priceKeyword(desc){
+  return desc
+    .replace(/\(.*?\)/g,' ')          // ตัดวงเล็บ
+    .replace(/[•·\-–—]/g,' ')
+    .replace(/ค่าแรง.*$/,'')          // ตัดคำว่าค่าแรง...
+    .replace(/\s+/g,' ')
+    .trim()
+    .split(' ').slice(0,4).join(' '); // เอา 4 คำแรก
+}
+
+function openPriceSearch(desc){
+  const kw = priceKeyword(desc);
+  showPricePopup(kw);
+}
+
+// look up the current (possibly edited) description by row id, then search
+function openPriceSearchById(id){
+  const row = boqData.find(r=>r.id===id);
+  const desc = row ? row.desc : '';
+  showPricePopup(priceKeyword(desc));
+}
+
+function showPricePopup(kw){
+  // remove existing
+  const old=document.getElementById('price-popup'); if(old) old.remove();
+  const ov=document.createElement('div');
+  ov.id='price-popup';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  let btns='';
+  PRICE_STORES.forEach(s=>{
+    btns+=`<a href="${s.url(kw)}" target="_blank" rel="noopener"
+      style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-radius:8px;background:${s.color};color:#fff;text-decoration:none;font-weight:600;font-family:'Sarabun',sans-serif;font-size:0.95rem;margin-bottom:8px;">
+      <span>🔍 ค้นใน ${s.name}</span><span style="opacity:.8">↗</span></a>`;
+  });
+  ov.innerHTML=`
+    <div style="background:#fff;border-radius:12px;max-width:420px;width:100%;padding:20px;font-family:'Sarabun',sans-serif;box-shadow:0 10px 40px rgba(0,0,0,.4);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-weight:700;color:#1e3a5f;font-size:1.05rem">ค้นหาราคาวัสดุ</div>
+        <button onclick="document.getElementById('price-popup').remove()" style="border:none;background:#eee;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:1.1rem">✕</button>
+      </div>
+      <div style="font-size:0.8rem;color:#666;margin-bottom:4px">คำค้นหา (แก้ไขได้):</div>
+      <input id="price-kw" value="${kw.replace(/"/g,'&quot;')}"
+        style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:6px;font-family:'Sarabun',sans-serif;font-size:0.9rem;margin-bottom:12px"
+        onkeydown="if(event.key==='Enter'){refreshPricePopup()}">
+      <button onclick="refreshPricePopup()" style="width:100%;padding:8px;border:1px solid #1e3a5f;background:#1e3a5f;color:#fff;border-radius:6px;cursor:pointer;font-family:'Sarabun',sans-serif;margin-bottom:12px">↻ อัปเดตคำค้นหา</button>
+      <div id="price-btns">${btns}</div>
+      <div style="font-size:0.72rem;color:#999;margin-top:10px;line-height:1.6">
+        💡 เปิดหน้าค้นหาของแต่ละร้านในแท็บใหม่ — ตรวจราคาแล้วนำมากรอกในช่อง "วัสดุ/หน่วย" เอง<br>
+        ⚠️ ราคาออนไลน์อาจต่างจากราคาหน้าร้าน/ราคาช่าง
+      </div>
+    </div>`;
+  ov.addEventListener('click',e=>{ if(e.target===ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
+function refreshPricePopup(){
+  const kw=document.getElementById('price-kw').value.trim();
+  let btns='';
+  PRICE_STORES.forEach(s=>{
+    btns+=`<a href="${s.url(kw)}" target="_blank" rel="noopener"
+      style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-radius:8px;background:${s.color};color:#fff;text-decoration:none;font-weight:600;font-family:'Sarabun',sans-serif;font-size:0.95rem;margin-bottom:8px;">
+      <span>🔍 ค้นใน ${s.name}</span><span style="opacity:.8">↗</span></a>`;
+  });
+  document.getElementById('price-btns').innerHTML=btns;
+}
+
+// add a blank item row after the last item in a section
+function boqAddRow(secId) {
+  const secRows = boqData.filter(r=>r.secId===secId);
+  const lastIdx = boqData.lastIndexOf(boqData.filter(r=>r.secId===secId).pop());
+  const uid = 'r'+Date.now();
+  const no = secRows.length>0 ? (secId.replace('s','')+'.'+( secRows.length+1)) : '?.1';
+  boqData.splice(boqData.findIndex(r=>r.id===secId && r.isSec) + secRows.length + 1, 0,
+    { id:uid, secId, no, desc:'รายการใหม่', unit:'ที่', qty:1, mat:0, labor:0, note:'' });
+  renderBOQ();
+  // focus desc of new row
+  setTimeout(()=>{ const el=document.getElementById('d_'+uid); if(el) el.focus(); },80);
+}
+
+// add a new section at end
+function boqAddSection() {
+  const secs = boqData.filter(r=>r.isSec);
+  const n = secs.length+1;
+  const sid='s'+Date.now();
+  boqData.push({ id:sid, isSec:true, label:`${n}. หมวดงานใหม่` });
+  renderBOQ();
+}
+
+function renderBOQ() {
+  const v = getVals();
+  const fmt  = n => Math.round(n).toLocaleString('th-TH');
+  const fmtQ = n => (+n).toLocaleString('th-TH',{maximumFractionDigits:2});
+  const dateStr = v.projDate ? formatThaiDate(v.projDate) : formatThaiDate(null);
+  const area = v.eW*v.eL;
+
+  // totals (use shared calc so % / fixed overrides apply)
+  const T = boqTotals();
+  let totalMat=T.totalMat, totalLabor=T.totalLabor;
+  const subTotal=T.sub;
+  const contingAmt=T.contingAmt;
+  const oh=T.oh;
+  const vat=T.vat;
+  const grand=T.grand;
+  const perSqm=T.perSqm;
+  const matPct=subTotal>0?Math.round(totalMat/subTotal*100):0;
+  const lbrPct=100-matPct;
+
+  // editable cell helpers
+  const ed = (id,field,val,style='',type='text') =>
+    `<span id="${field==='desc'?'d_':field==='label'?'l_':''}${id}"
+      contenteditable="true"
+      spellcheck="false"
+      style="display:inline-block;min-width:${type==='num'?'52px':'60px'};outline:none;cursor:text;${style}"
+      onblur="boqEdit('${id}','${field}',this.textContent.trim())"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+    >${val}</span>`;
+
+  const numEd = (id,field,val) => ed(id,field,val,'text-align:right;font-family:Share Tech Mono,monospace;','num');
+
+  // mode toggle buttons (% vs ฿)
+  const toggleBtn = (curMode, mode, label, fn) =>
+    `<button onclick="${fn}('${mode}')" style="border:1px solid #b8860b;background:${curMode===mode?'#b8860b':'#fff'};color:${curMode===mode?'#fff':'#b8860b'};font-size:0.62rem;padding:1px 6px;border-radius:3px;cursor:pointer;">${label}</button>`;
+  const contToggle = () =>
+    toggleBtn(T.contMode,'pct','%','setContingMode')+toggleBtn(T.contMode,'fixed','฿','setContingMode');
+  const ohToggle = () =>
+    toggleBtn(T.ohMode,'pct','%','setOverheadMode')+toggleBtn(T.ohMode,'fixed','฿','setOverheadMode');
+
+  let html = `
+<div class="boq-wrap">
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+    <button class="boq-print-btn" style="float:none;margin:0" onclick="window.print()">🖨️ พิมพ์ / PDF</button>
+    <button class="boq-print-btn" style="float:none;margin:0;background:#2d7a4f" onclick="boqAddSection()">＋ เพิ่มหมวดงาน</button>
+    <button class="boq-print-btn" style="float:none;margin:0;background:#c0392b" onclick="if(confirm('คำนวณปริมาณใหม่จากขนาดปัจจุบัน? การแก้ไขที่ทำไว้จะหายไป')){boqInited=false;drawBOQ(getVals());}">↻ คำนวณใหม่จากขนาด</button>
+    <span style="font-size:0.72rem;color:var(--dim);font-family:'Share Tech Mono',monospace;">✏️ คลิกตัวเลข/ข้อความเพื่อแก้ไข · 🔍 กดค้นราคาวัสดุจากร้านค้า</span>
+  </div>
+  <div class="boq-header">
+    <div>
+      <div class="boq-title">ใบประมาณการราคาก่อสร้าง — แยกวัสดุ / ค่าแรง</div>
+      <div style="font-size:0.8rem;color:var(--dim);margin-top:3px;">โครงการ: <b>${v.projName}</b> &nbsp;|&nbsp; เจ้าของ: ${v.projOwner}</div>
+    </div>
+    <div class="boq-meta">วันที่: ${dateStr}<br>พื้นที่: ${area.toFixed(2)} ตร.ม. &nbsp;|&nbsp; Rev: ${v.projRev}</div>
+  </div>
+
+  <div class="boq-summary" style="grid-template-columns:repeat(5,1fr)">
+    <div class="boq-card"><div class="boq-card-label">พื้นที่ต่อเติม</div><div class="boq-card-val">${area.toFixed(2)} ตร.ม.</div><div class="boq-card-sub">${v.eW}×${v.eL}ม. สูง ${v.eH}ม.</div></div>
+    <div class="boq-card" style="border-left-color:#1e6fa0"><div class="boq-card-label">ค่าวัสดุรวม</div><div class="boq-card-val" style="color:#1e6fa0">฿${fmt(totalMat)}</div><div class="boq-card-sub">${matPct}% ของงานก่อสร้าง</div></div>
+    <div class="boq-card" style="border-left-color:#d4a853"><div class="boq-card-label">ค่าแรงรวม</div><div class="boq-card-val" style="color:#b8860b">฿${fmt(totalLabor)}</div><div class="boq-card-sub">${lbrPct}% ของงานก่อสร้าง</div></div>
+    <div class="boq-card green"><div class="boq-card-label">รวมทั้งสิ้น (รวม VAT)</div><div class="boq-card-val">฿${fmt(grand)}</div><div class="boq-card-sub">เผื่อ ${(+T.contingPctShown).toFixed(1)}% + OH ${(+T.ohPctShown).toFixed(1)}% + VAT 7%</div></div>
+    <div class="boq-card red"><div class="boq-card-label">ราคาต่อ ตร.ม.</div><div class="boq-card-val">฿${fmt(perSqm)}</div><div class="boq-card-sub">ประมาณการเบื้องต้น</div></div>
+  </div>
+
+  <div style="display:flex;height:10px;border-radius:4px;overflow:hidden;margin:8px 0 6px;">
+    <div style="width:${matPct}%;background:#1e6fa0;transition:width .3s"></div>
+    <div style="width:${lbrPct}%;background:#d4a853;transition:width .3s"></div>
+  </div>
+  <div style="display:flex;gap:20px;font-size:0.73rem;margin-bottom:12px;">
+    <span><span style="display:inline-block;width:11px;height:11px;background:#1e6fa0;border-radius:2px;margin-right:4px;vertical-align:middle"></span>ค่าวัสดุ ${matPct}% = ฿${fmt(totalMat)}</span>
+    <span><span style="display:inline-block;width:11px;height:11px;background:#d4a853;border-radius:2px;margin-right:4px;vertical-align:middle"></span>ค่าแรง ${lbrPct}% = ฿${fmt(totalLabor)}</span>
+  </div>
+
+  <table class="boq-table">
+    <thead><tr>
+      <th style="width:32px"></th>
+      <th style="width:34px">ที่</th>
+      <th>รายการ / Description</th>
+      <th style="width:52px" class="num">จำนวน</th>
+      <th style="width:44px">หน่วย</th>
+      <th style="width:78px" class="num">วัสดุ/หน่วย</th>
+      <th style="width:78px" class="num">รวมวัสดุ</th>
+      <th style="width:72px" class="num">แรง/หน่วย</th>
+      <th style="width:72px" class="num">รวมแรง</th>
+      <th style="width:84px" class="num">รวม (บาท)</th>
+      <th style="width:88px">หมายเหตุ</th>
+    </tr></thead>
+    <tbody>`;
+
+  let curSecId=''; let secMat=0; let secLbr=0;
+
+  boqData.forEach(row => {
+    if (row.isSec) {
+      // print subtotal for previous section
+      if (curSecId) {
+        html+=`<tr class="subtotal-row">
+          <td colspan="5" style="text-align:right;font-size:0.73rem;">รวมหมวด</td>
+          <td class="num" style="color:#1e6fa0">฿${fmt(secMat)}</td><td></td>
+          <td class="num" style="color:#b8860b">฿${fmt(secLbr)}</td><td></td>
+          <td class="num">฿${fmt(secMat+secLbr)}</td><td></td></tr>`;
+      }
+      curSecId=row.id; secMat=0; secLbr=0;
+      html+=`<tr class="section-row">
+        <td style="text-align:center;cursor:pointer;opacity:.6" title="ลบหมวด" onclick="if(confirm('ลบหมวดนี้?')){boqData=boqData.filter(r=>r.id!=='${row.id}'&&r.secId!=='${row.id}');renderBOQ();}">🗑</td>
+        <td colspan="9">${ed(row.id,'label',row.label,'font-weight:700;color:#1e3a5f;font-size:0.82rem;width:100%')}</td>
+        <td style="text-align:center"><button onclick="boqAddRow('${row.id}')" style="background:#2d7a4f;color:white;border:none;border-radius:3px;padding:2px 8px;cursor:pointer;font-size:0.72rem;">＋ เพิ่ม</button></td>
+      </tr>`;
+    } else {
+      const m=row.qty*(+row.mat), l=row.qty*(+row.labor), tot=m+l;
+      secMat+=m; secLbr+=l;
+      html+=`<tr>
+        <td style="text-align:center;cursor:pointer;opacity:.5;font-size:0.85rem" title="ลบรายการ" onclick="boqDel('${row.id}')">✕</td>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:0.7rem;color:var(--dim)">${numEd(row.id,'no',row.no)}</td>
+        <td>${ed(row.id,'desc',row.desc,'width:calc(100% - 22px)')}<span onclick="openPriceSearchById('${row.id}')" title="ค้นราคาวัสดุจากร้านค้า" style="cursor:pointer;margin-left:2px;font-size:0.8rem;opacity:.6;user-select:none">🔍</span></td>
+        <td class="num">${numEd(row.id,'qty',fmtQ(row.qty))}</td>
+        <td>${ed(row.id,'unit',row.unit,'font-size:0.78rem')}</td>
+        <td class="num" style="background:#f0f6fb">${numEd(row.id,'mat',row.mat>0?fmt(+row.mat):'0')}</td>
+        <td class="num" style="color:#1e6fa0;background:#f0f6fb"><b>${m>0?fmt(m):'—'}</b></td>
+        <td class="num" style="background:#fffbf0">${numEd(row.id,'labor',row.labor>0?fmt(+row.labor):'0')}</td>
+        <td class="num" style="color:#b8860b;background:#fffbf0"><b>${l>0?fmt(l):'—'}</b></td>
+        <td class="num"><b>${fmt(tot)}</b></td>
+        <td>${ed(row.id,'note',row.note,'font-size:0.70rem;color:var(--dim)')}</td>
+      </tr>`;
+    }
+  });
+
+  // last section subtotal
+  if(curSecId){
+    html+=`<tr class="subtotal-row">
+      <td colspan="5" style="text-align:right;font-size:0.73rem;">รวมหมวด</td>
+      <td class="num" style="color:#1e6fa0">฿${fmt(secMat)}</td><td></td>
+      <td class="num" style="color:#b8860b">฿${fmt(secLbr)}</td><td></td>
+      <td class="num">฿${fmt(secMat+secLbr)}</td><td></td></tr>`;
+  }
+
+  html+=`
+    <tr style="height:5px"><td colspan="11"></td></tr>
+    <tr class="subtotal-row">
+      <td colspan="5" style="text-align:right">รวมค่าวัสดุทั้งหมด / รวมค่าแรงทั้งหมด</td>
+      <td class="num" style="color:#1e6fa0">฿${fmt(totalMat)}</td><td></td>
+      <td class="num" style="color:#b8860b">฿${fmt(totalLabor)}</td><td></td>
+      <td class="num">฿${fmt(subTotal)}</td><td></td>
+    </tr>
+    <tr class="overhead-row">
+      <td colspan="7" style="text-align:right">
+        เผื่อความผิดพลาด Contingency
+        <span style="margin-left:6px">${contToggle()}</span>
+        ${T.contMode==='pct'
+          ? `(<span contenteditable="true" spellcheck="false" style="display:inline-block;min-width:30px;text-align:right;outline:none;font-weight:700" onblur="editConting('pct',this.textContent.trim())" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${(+T.contingPctShown).toFixed(1)}</span>%)`
+          : `(ระบุเป็นเงิน)`}
+      </td>
+      <td colspan="2" style="text-align:right;font-size:0.72rem;color:var(--dim)">วัสดุผันผวน</td>
+      <td class="num">${T.contMode==='fixed'
+          ? `฿<span contenteditable="true" spellcheck="false" style="display:inline-block;min-width:50px;text-align:right;outline:none;font-weight:700" onblur="editConting('fixed',this.textContent.trim())" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${fmt(contingAmt)}</span>`
+          : `฿${fmt(contingAmt)}`}</td>
+      <td></td>
+    </tr>
+    <tr class="overhead-row">
+      <td colspan="7" style="text-align:right">
+        Overhead / กำไรผู้รับเหมา
+        <span style="margin-left:6px">${ohToggle()}</span>
+        ${T.ohMode==='pct'
+          ? `(<span contenteditable="true" spellcheck="false" style="display:inline-block;min-width:30px;text-align:right;outline:none;font-weight:700" onblur="editOverhead('pct',this.textContent.trim())" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${(+T.ohPctShown).toFixed(1)}</span>%)`
+          : `(ระบุเป็นเงิน)`}
+      </td>
+      <td colspan="2" style="text-align:right;font-size:0.72rem;color:var(--dim)">กำไร+ค่าดำเนินการ</td>
+      <td class="num">${T.ohMode==='fixed'
+          ? `฿<span contenteditable="true" spellcheck="false" style="display:inline-block;min-width:50px;text-align:right;outline:none;font-weight:700" onblur="editOverhead('fixed',this.textContent.trim())" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${fmt(oh)}</span>`
+          : `฿${fmt(oh)}`}</td>
+      <td></td>
+    </tr>
+    <tr class="overhead-row">
+      <td colspan="9" style="text-align:right">ภาษีมูลค่าเพิ่ม VAT 7%</td>
+      <td class="num">฿${fmt(vat)}</td><td></td>
+    </tr>
+    <tr class="total-row">
+      <td colspan="9" style="text-align:right;font-size:0.9rem;">รวมทั้งสิ้น (รวม VAT)</td>
+      <td class="num" style="font-size:0.95rem;">฿${fmt(grand)}</td><td></td>
+    </tr>
+    </tbody>
+  </table>
+  <div class="boq-disclaimer">
+    ⚠️ ประมาณการเบื้องต้น ราคาจริงขึ้นอยู่กับสภาพดิน ยี่ห้อวัสดุ ค่าแรงในพื้นที่ &nbsp;|&nbsp;
+    สัดส่วนวัสดุ:แรง = <b>${matPct}:${lbrPct}</b> &nbsp;|&nbsp;
+    ควรให้ผู้รับเหมาสำรวจหน้างานก่อนเสนอราคาจริง
+  </div>
+
+  <div class="sig-block">
+    <div class="sig-box">
+      <div class="sig-line"></div>
+      <div class="sig-name">${v.sigContractor || '(...........................................)'}</div>
+      <div class="sig-role">ผู้รับเหมา / ผู้เสนอราคา</div>
+      <div class="sig-role">${v.sigCompany || ''}</div>
+      <div class="sig-role" style="margin-top:6px;">วันที่ ......./......./.........</div>
+    </div>
+    <div class="sig-box">
+      <div class="sig-line"></div>
+      <div class="sig-name">${v.projOwner !== '-' ? v.projOwner : '(...........................................)'}</div>
+      <div class="sig-role">ผู้ว่าจ้าง / เจ้าของโครงการ</div>
+      <div class="sig-role">&nbsp;</div>
+      <div class="sig-role" style="margin-top:6px;">วันที่ ......./......./.........</div>
+    </div>
+  </div>
+</div>`;
+
+  document.getElementById('boq-content').innerHTML = html;
+}
+
+function drawBOQ(v) {
+  if (!boqInited) {
+    boqData = initBoqData(v);
+    boqInited = true;
+  }
+  renderBOQ();
+}
+
+/* ─────────────────────────────────────────────
+   PAYMENT MILESTONES (งวดงาน-งวดเงิน)
+───────────────────────────────────────────── */
+let paymentData = null;
+function initPayment() {
+  return [
+    { name:'งวดที่ 1 — มัดจำเริ่มงาน / เตรียมการ', pct:25, desc:'ลงนามสัญญา + เคลียร์พื้นที่ + เสาเข็ม' },
+    { name:'งวดที่ 2 — งานฐานราก + โครงสร้าง', pct:30, desc:'เทฐานราก เสา คาน เสร็จ' },
+    { name:'งวดที่ 3 — ก่อผนัง + มุงหลังคา', pct:25, desc:'ก่ออิฐ ฉาบปูน มุงหลังคาเสร็จ' },
+    { name:'งวดที่ 4 — งานระบบ + เก็บงาน', pct:15, desc:'ไฟฟ้า ประปา ทาสี ปูพื้น' },
+    { name:'งวดที่ 5 — ส่งมอบงาน (ประกัน)', pct:5, desc:'ตรวจรับ + แก้ defect + ส่งมอบ' },
+  ];
+}
+function payEdit(idx, field, val) {
+  if (field==='pct') { const n=parseFloat(val); if(!isNaN(n)) paymentData[idx].pct=n; }
+  else paymentData[idx][field]=val;
+  renderPayment();
+}
+function renderPayment() {
+  if (!paymentData) paymentData = initPayment();
+  const t = boqTotals();
+  const fmt = n => Math.round(n).toLocaleString('th-TH');
+  const dateStr = t.v.projDate ? formatThaiDate(t.v.projDate) : formatThaiDate(null);
+  const totalPct = paymentData.reduce((s,p)=>s+(+p.pct),0);
+
+  const ed=(idx,field,val,style='')=>`<span contenteditable="true" spellcheck="false" style="display:inline-block;outline:none;${style}" onblur="payEdit(${idx},'${field}',this.textContent.trim())" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${val}</span>`;
+
+  let rows='';
+  paymentData.forEach((p,i)=>{
+    const amt=t.grand*p.pct/100;
+    rows+=`<tr>
+      <td style="text-align:center;cursor:pointer;opacity:.5" onclick="paymentData.splice(${i},1);renderPayment()">✕</td>
+      <td>${ed(i,'name',p.name,'font-weight:600;width:100%')}<div style="font-size:0.72rem;color:var(--dim)">${ed(i,'desc',p.desc)}</div></td>
+      <td class="num">${ed(i,'pct',p.pct,'text-align:right')}%</td>
+      <td class="num"><b>฿${fmt(amt)}</b></td>
+    </tr>`;
+  });
+
+  document.getElementById('payment-content').innerHTML=`
+  <div class="rpt-wrap">
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+      <button class="boq-print-btn" style="float:none;margin:0" onclick="window.print()">🖨️ พิมพ์ / PDF</button>
+      <button class="boq-print-btn" style="float:none;margin:0;background:#2d7a4f" onclick="paymentData.push({name:'งวดใหม่',pct:0,desc:''});renderPayment()">＋ เพิ่มงวด</button>
+      <span style="font-size:0.72rem;color:${totalPct===100?'var(--green)':'var(--red)'};font-family:'Share Tech Mono',monospace">รวม ${totalPct}% ${totalPct===100?'✓':'(ต้องรวม=100%)'}</span>
+    </div>
+    <div class="rpt-title">แผนการแบ่งงวดงาน-งวดเงิน (Payment Milestones)</div>
+    <div class="rpt-sub">โครงการ: <b>${t.v.projName}</b> | มูลค่ารวม ฿${fmt(t.grand)} | วันที่ ${dateStr}</div>
+    <table class="rpt-table">
+      <thead><tr><th style="width:32px"></th><th>งวดงาน / เงื่อนไขการจ่าย</th><th style="width:70px" class="num">สัดส่วน</th><th style="width:120px" class="num">จำนวนเงิน</th></tr></thead>
+      <tbody>${rows}
+        <tr class="total-row"><td colspan="2" style="text-align:right">รวมทั้งสิ้น</td><td class="num">${totalPct}%</td><td class="num">฿${fmt(t.grand*totalPct/100)}</td></tr>
+      </tbody>
+    </table>
+    <div class="boq-disclaimer">💡 งวดเงินควรสอดคล้องกับความคืบหน้าจริง — แนะนำไม่จ่ายมัดจำเกิน 30% และเก็บงวดสุดท้าย 5-10% เป็นเงินประกันผลงาน (Retention) จ่ายหลังตรวจรับ</div>
+    <div class="sig-block">
+      <div class="sig-box"><div class="sig-line"></div><div class="sig-name">${t.v.sigContractor||'(.............................)'}</div><div class="sig-role">ผู้รับเหมา</div></div>
+      <div class="sig-box"><div class="sig-line"></div><div class="sig-name">${t.v.projOwner!=='-'?t.v.projOwner:'(.............................)'}</div><div class="sig-role">ผู้ว่าจ้าง</div></div>
+    </div>
+  </div>`;
+}
+
+/* ─────────────────────────────────────────────
+   TIMELINE / GANTT (แผนงานก่อสร้าง)
+───────────────────────────────────────────── */
+function renderTimeline() {
+  const v = getVals();
+  const D = v.totalDays;
+  // phases: [name, startFrac, durFrac, color]
+  const phases = [
+    ['เตรียมพื้นที่ + รื้อถอน', 0.00, 0.08, '#6b7c93'],
+    ['ตอกเสาเข็ม', 0.06, 0.10, '#8e44ad'],
+    ['งานฐานราก (ขุด/เท)', 0.14, 0.12, '#c0392b'],
+    ['เสา + คาน คสล.', 0.24, 0.15, '#e67e22'],
+    ['เทพื้น คสล.', 0.36, 0.08, '#d4a853'],
+    ['ก่อผนัง + ฉาบปูน', 0.42, 0.18, '#16a085'],
+    ['โครงหลังคา + มุงหลังคา', 0.55, 0.12, '#2980b9'],
+    ['ติดตั้งประตู-หน้าต่าง', 0.66, 0.08, '#27ae60'],
+    ['งานไฟฟ้า + ประปา', 0.68, 0.14, '#f39c12'],
+    ['ทาสี + ปูกระเบื้อง', 0.80, 0.14, '#9b59b6'],
+    ['เก็บงาน + ตรวจรับ', 0.92, 0.08, '#2c3e50'],
+  ];
+  const dateStr = v.projDate ? formatThaiDate(v.projDate) : formatThaiDate(null);
+  // week markers
+  const weeks = Math.ceil(D/7);
+  let scale='';
+  for(let w=0;w<=weeks;w++){
+    scale+=`<div style="position:absolute;left:${w*7/D*100}%;top:0;bottom:0;border-left:1px dashed #ccc;"><span style="position:absolute;top:-16px;left:2px;font-size:0.62rem;color:var(--dim);font-family:'Share Tech Mono',monospace">สัปดาห์${w+1<=weeks?w+1:''}</span></div>`;
+  }
+  let bars='';
+  phases.forEach(([name,s,d,c])=>{
+    const days = Math.round(d*D);
+    bars+=`<div class="gantt-row">
+      <div class="gantt-label">${name}</div>
+      <div class="gantt-track" style="position:relative">
+        ${scale}
+        <div class="gantt-bar" style="left:${s*100}%;width:${d*100}%;background:${c}">${days}ว.</div>
+      </div>
+    </div>`;
+  });
+
+  document.getElementById('timeline-content').innerHTML=`
+  <div class="rpt-wrap">
+    <div style="margin-bottom:10px"><button class="boq-print-btn" style="float:none" onclick="window.print()">🖨️ พิมพ์ / PDF</button></div>
+    <div class="rpt-title">แผนงานก่อสร้าง (Construction Timeline)</div>
+    <div class="rpt-sub">โครงการ: <b>${v.projName}</b> | ระยะเวลารวม <b>${D} วัน</b> (~${(D/7).toFixed(1)} สัปดาห์) | เริ่ม ${dateStr}</div>
+    <div style="margin-top:24px">${bars}</div>
+    <div class="boq-disclaimer" style="margin-top:20px">💡 แผนนี้เป็นการประมาณ บางงานทำคู่ขนานได้ (เช่น ไฟฟ้า+ประปา ระหว่างก่อผนัง) | ปรับ "ระยะเวลาก่อสร้างรวม" ในแถบควบคุมด้านบนเพื่อยืด/หดแผน | เผื่อวันฝนตกและวันหยุด</div>
+  </div>`;
+}
+
+/* ─────────────────────────────────────────────
+   ELECTRICAL / REFLECTED CEILING PLAN
+───────────────────────────────────────────── */
+function drawElectrical(v) {
+  const svg=document.getElementById('svg-electrical');
+  svg.innerHTML=''; addDefs(svg);
+  txt(svg,410,24,'แปลนไฟฟ้า-ฝ้าเพดาน (ELECTRICAL & CEILING PLAN)',{'text-anchor':'middle','font-size':'14','font-weight':'700','fill':'#1e3a5f'});
+  txt(svg,410,40,'SCALE 1:50',{'text-anchor':'middle','font-size':'9','font-family':'Share Tech Mono,monospace','fill':'#6b7c93'});
+
+  const availW=560, availH=400;
+  const sc=Math.min(availW/(v.hW+v.eW+1), availH/Math.max(v.hL,v.eL))*0.8;
+  const ox=120, oy=70, wt=10;
+  const hPx=v.hW*sc,hLpx=v.hL*sc,ePx=v.eW*sc,eLpx=v.eL*sc;
+
+  // existing house (faded)
+  rect(svg,ox,oy,hPx+wt,hLpx+wt,{fill:'#f0ece2',stroke:'#bbb','stroke-width':'1.5'});
+  txt(svg,ox+hPx/2,oy+hLpx/2,'บ้านเดิม',{'text-anchor':'middle','font-size':'11','fill':'#bbb'});
+
+  // extension room
+  const ex=ox+hPx+wt;
+  rect(svg,ex,oy,ePx,wt,{fill:'#7db87d',stroke:'#c0392b','stroke-width':'2'});
+  rect(svg,ex+ePx,oy,wt,eLpx,{fill:'#7db87d',stroke:'#c0392b','stroke-width':'2'});
+  rect(svg,ex,oy+eLpx,ePx+wt,wt,{fill:'#7db87d',stroke:'#c0392b','stroke-width':'2'});
+  rect(svg,ex,oy+wt,ePx,eLpx-wt,{fill:'#fbfdfb'});
+
+  const cx=ex+ePx/2, cy=oy+eLpx/2;
+
+  // ceiling lights (2 if small, 4 if big)
+  const area=v.eW*v.eL;
+  const nLights = area<15?2:area<30?4:6;
+  const lightPos=[];
+  if(nLights===2){ lightPos.push([cx,oy+eLpx*0.33],[cx,oy+eLpx*0.66]); }
+  else if(nLights===4){ lightPos.push([ex+ePx*0.33,oy+eLpx*0.3],[ex+ePx*0.66,oy+eLpx*0.3],[ex+ePx*0.33,oy+eLpx*0.7],[ex+ePx*0.66,oy+eLpx*0.7]); }
+  else { for(let r=0;r<3;r++)for(let c=0;c<2;c++)lightPos.push([ex+ePx*(0.33+c*0.34),oy+eLpx*(0.22+r*0.28)]); }
+
+  lightPos.forEach(([lx,ly])=>{
+    svg.appendChild(el('circle',{cx:lx,cy:ly,r:'9',fill:'#fff3cd',stroke:'#d4a853','stroke-width':'1.5'}));
+    line(svg,lx-6,ly,lx+6,ly,{stroke:'#d4a853','stroke-width':'1'});
+    line(svg,lx,ly-6,lx,ly+6,{stroke:'#d4a853','stroke-width':'1'});
+  });
+
+  // switch near door (left wall, bottom)
+  const swX=ex+8, swY=oy+eLpx-30;
+  svg.appendChild(el('circle',{cx:swX,cy:swY,r:'7',fill:'#fff',stroke:'#1e3a5f','stroke-width':'1.5'}));
+  txt(svg,swX,swY+3,'S',{'text-anchor':'middle','font-size':'8','font-weight':'700','fill':'#1e3a5f'});
+  // dashed wiring from switch to lights
+  lightPos.forEach(([lx,ly])=>{
+    const p=el('path',{d:`M${swX},${swY} Q${(swX+lx)/2},${swY-20} ${lx},${ly}`,fill:'none',stroke:'#d4a853','stroke-width':'1','stroke-dasharray':'4,3','opacity':'0.6'});
+    svg.appendChild(p);
+  });
+
+  // power outlets (เต้ารับ) on walls
+  const outlets=[[ex+ePx*0.25,oy+eLpx+wt-3],[ex+ePx*0.75,oy+eLpx+wt-3],[ex+ePx+wt-3,oy+eLpx*0.4],[ex+ePx+wt-3,oy+eLpx*0.7]];
+  outlets.forEach(([ox2,oy2])=>{
+    svg.appendChild(el('circle',{cx:ox2,cy:oy2,r:'6',fill:'#fff',stroke:'#16a085','stroke-width':'1.5'}));
+    line(svg,ox2-3,oy2,ox2+3,oy2,{stroke:'#16a085','stroke-width':'1.5'});
+    line(svg,ox2,oy2-3,ox2,oy2,{stroke:'#16a085','stroke-width':'1.5'});
+  });
+
+  // distribution point (from existing panel)
+  svg.appendChild(el('rect',{x:ex-4,y:oy+12,width:16,height:22,fill:'#fff',stroke:'#c0392b','stroke-width':'2'}));
+  txt(svg,ex+4,oy+26,'DB',{'text-anchor':'middle','font-size':'7','font-weight':'700','fill':'#c0392b'});
+  txt(svg,ex+4,oy+8,'ต่อจากตู้เดิม',{'text-anchor':'middle','font-size':'7','fill':'#c0392b'});
+
+  txt(svg,ex+ePx/2,oy+eLpx/2-14,'ห้องต่อเติม',{'text-anchor':'middle','font-size':'11','font-weight':'600','fill':'#1e3a5f'});
+
+  // LEGEND box
+  const lx0=620, ly0=90;
+  rect(svg,lx0,ly0,180,180,{fill:'#fff',stroke:'#1e3a5f','stroke-width':'1'});
+  txt(svg,lx0+90,ly0+18,'สัญลักษณ์ (LEGEND)',{'text-anchor':'middle','font-size':'10','font-weight':'700','fill':'#1e3a5f'});
+  const leg=[
+    ['💡 ดวงโคมไฟ (Downlight)','#d4a853','circle-cross'],
+    ['S สวิตช์ไฟ (Switch)','#1e3a5f','S'],
+    ['เต้ารับ (Outlet)','#16a085','outlet'],
+    ['DB ตู้ไฟย่อย','#c0392b','box'],
+    ['สายไฟ (Wiring)','#d4a853','dash'],
+  ];
+  leg.forEach(([label,c],i)=>{
+    const yy=ly0+38+i*26;
+    if(i===0){svg.appendChild(el('circle',{cx:lx0+16,cy:yy,r:'7',fill:'#fff3cd',stroke:c,'stroke-width':'1.5'}));line(svg,lx0+11,yy,lx0+21,yy,{stroke:c,'stroke-width':'1'});line(svg,lx0+16,yy-5,lx0+16,yy+5,{stroke:c,'stroke-width':'1'});}
+    else if(i===1){svg.appendChild(el('circle',{cx:lx0+16,cy:yy,r:'7',fill:'#fff',stroke:c,'stroke-width':'1.5'}));txt(svg,lx0+16,yy+3,'S',{'text-anchor':'middle','font-size':'8','font-weight':'700','fill':c});}
+    else if(i===2){svg.appendChild(el('circle',{cx:lx0+16,cy:yy,r:'6',fill:'#fff',stroke:c,'stroke-width':'1.5'}));line(svg,lx0+13,yy,lx0+19,yy,{stroke:c,'stroke-width':'1.5'});line(svg,lx0+16,yy-3,lx0+16,yy,{stroke:c,'stroke-width':'1.5'});}
+    else if(i===3){svg.appendChild(el('rect',{x:lx0+9,y:yy-8,width:14,height:16,fill:'#fff',stroke:c,'stroke-width':'1.5'}));}
+    else {line(svg,lx0+9,yy,lx0+23,yy,{stroke:c,'stroke-width':'1.5','stroke-dasharray':'4,3'});}
+    txt(svg,lx0+32,yy+3,label.replace(/^(💡|S|DB)\s?/,''),{'font-size':'8.5','fill':'#333'});
+  });
+
+  document.getElementById('notes-electrical').innerHTML=`<h4>📌 หมายเหตุงานไฟฟ้า</h4><ul>
+    <li>จำนวนดวงโคม <span class="dyn">${nLights} จุด</span> (คำนวณตามพื้นที่ ${area.toFixed(1)} ตร.ม.)</li>
+    <li>เต้ารับ <span class="dyn">${outlets.length} จุด</span> สูงจากพื้น 0.30 ม. (ทั่วไป) / 1.10 ม. (เคาน์เตอร์)</li>
+    <li>ต่อวงจรใหม่จากตู้ Consumer Unit เดิม — เพิ่ม Breaker ย่อยขนาด 16A สำหรับวงจรนี้</li>
+    <li>สายไฟ THW/IEC01 ขนาด 2.5 sq.mm. ร้อยท่อ PVC สีขาว Ø ½ นิ้ว</li>
+    <li>ติดตั้งสายดิน (Ground) ทุกเต้ารับ เพื่อความปลอดภัย</li></ul>`;
+}
+
+/* ─────────────────────────────────────────────
+   SPECIFICATION (รายการประกอบแบบ)
+───────────────────────────────────────────── */
+let specData=null;
+function initSpec(){
+  return [
+    ['โครงสร้าง','คอนกรีต','ปูนผสมเสร็จ กำลังอัด 240 ksc (Cube) / fc′ 210','CPAC / TPI / นครหลวง'],
+    ['โครงสร้าง','เหล็กเสริม','SD40 (ข้ออ้อย) / SR24 (กลม) มอก.','TATA / SYS / Millcon'],
+    ['ผนัง','อิฐมวลเบา','หนา 10 ซม. ความหนาแน่น G4','Q-CON / Superblock'],
+    ['ผนัง','ปูนฉาบ','ปูนสำเร็จฉาบทั่วไป','เสือ / TPI'],
+    ['หลังคา','เมทัลชีท','หนา 0.47 มม. เคลือบสี 2 ด้าน','BlueScope / NS BlueScope'],
+    ['หลังคา','ฉนวนกันความร้อน','PE Foam หนา 5 มม. ติดใต้เมทัลชีท','—'],
+    ['พื้น','กระเบื้องพอร์ซเลน','ขนาด 60×60 ซม. ผิวด้าน กันลื่น R10','COTTO / DURAGRES / SOSUCO'],
+    ['ประตู','ประตูไม้','ไม้เนื้อแข็ง / ไม้เอ็นจิเนียร์ บานทึบ','—'],
+    ['หน้าต่าง','อะลูมิเนียม','สีชา/ขาว บานเลื่อน กระจกใส 5 มม.','TOSTEM / Window Asia'],
+    ['สี','สีรองพื้น','สีรองพื้นปูนเก่า/ใหม่ กันด่าง','TOA / Beger / Nippon'],
+    ['สี','สีจริงภายนอก','อะคริลิก 100% กันเชื้อรา/ตะไคร่','TOA SuperShield'],
+    ['สี','สีจริงภายใน','อะคริลิกเช็ดล้างได้','TOA / Beger'],
+    ['ไฟฟ้า','สายไฟ','THW/IEC01 2.5 sq.mm. มอก.','Bangkok Cable / Phelps Dodge'],
+    ['ไฟฟ้า','ดวงโคม','LED Downlight 9-12W แสง Daylight','Philips / Lamptan'],
+    ['ไฟฟ้า','เต้ารับ/สวิตช์','มาตรฐาน มี Ground','Panasonic / Schneider'],
+    ['สุขาภิบาล','ท่อน้ำดี','PPR ทนแรงดัน','SCG / นันยาง'],
+    ['สุขาภิบาล','ท่อน้ำทิ้ง','PVC ชั้น 8.5','SCG / ท่อน้ำไทย'],
+  ];
+}
+function specEdit(i,j,val){ specData[i][j]=val; }
+function renderSpec(){
+  if(!specData) specData=initSpec();
+  const v=getVals();
+  const dateStr=v.projDate?formatThaiDate(v.projDate):formatThaiDate(null);
+  const ed=(i,j,val)=>`<span contenteditable="true" spellcheck="false" style="display:inline-block;outline:none;min-width:50px" onblur="specEdit(${i},${j},this.textContent.trim())">${val}</span>`;
+  let rows='';
+  specData.forEach((r,i)=>{
+    rows+=`<tr>
+      <td style="text-align:center;cursor:pointer;opacity:.5" onclick="specData.splice(${i},1);renderSpec()">✕</td>
+      <td>${ed(i,0,r[0])}</td><td><b>${ed(i,1,r[1])}</b></td><td>${ed(i,2,r[2])}</td><td style="color:var(--dim)">${ed(i,3,r[3])}</td>
+    </tr>`;
+  });
+  document.getElementById('spec-content').innerHTML=`
+  <div class="rpt-wrap">
+    <div style="display:flex;gap:8px;margin-bottom:10px"><button class="boq-print-btn" style="float:none" onclick="window.print()">🖨️ พิมพ์ / PDF</button>
+    <button class="boq-print-btn" style="float:none;background:#2d7a4f" onclick="specData.push(['หมวด','รายการ','สเปก','ยี่ห้อ']);renderSpec()">＋ เพิ่มรายการ</button></div>
+    <div class="rpt-title">รายการประกอบแบบ (Material Specification)</div>
+    <div class="rpt-sub">โครงการ: <b>${v.projName}</b> | วันที่ ${dateStr} | คลิกแก้ไขได้ทุกช่อง</div>
+    <table class="rpt-table">
+      <thead><tr><th style="width:32px"></th><th style="width:100px">หมวดงาน</th><th style="width:130px">รายการ</th><th>สเปก / มาตรฐาน</th><th style="width:200px">ยี่ห้อแนะนำ</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="boq-disclaimer">💡 ยี่ห้อที่ระบุเป็นเพียงตัวอย่าง "หรือเทียบเท่า" — ผู้ว่าจ้างและผู้รับเหมาควรตกลงยี่ห้อ/รุ่นที่แน่นอนก่อนเริ่มงาน เพื่อป้องกันข้อโต้แย้งเรื่องคุณภาพ</div>
+  </div>`;
+}
+
+/* ─────────────────────────────────────────────
+   COMPARE OPTIONS (เปรียบเทียบทางเลือก)
+───────────────────────────────────────────── */
+function renderCompare(){
+  const t=boqTotals();
+  const fmt=n=>Math.round(n).toLocaleString('th-TH');
+  const base=t.grand;     // current = อิฐมวลเบา + เมทัลชีท
+  // option factors (rough): steel-frame lightweight, concrete heavy, premium
+  const optSteel = base*0.82;   // โครงเหล็กเบา
+  const optConc  = base*1.18;   // คอนกรีตเต็มระบบ
+  const dateStr=t.v.projDate?formatThaiDate(t.v.projDate):formatThaiDate(null);
+
+  document.getElementById('compare-content').innerHTML=`
+  <div class="rpt-wrap">
+    <div style="margin-bottom:10px"><button class="boq-print-btn" style="float:none" onclick="window.print()">🖨️ พิมพ์ / PDF</button></div>
+    <div class="rpt-title">เปรียบเทียบทางเลือกการก่อสร้าง (Option Comparison)</div>
+    <div class="rpt-sub">โครงการ: <b>${t.v.projName}</b> | พื้นที่ ${t.area.toFixed(1)} ตร.ม. | วันที่ ${dateStr}</div>
+    <div class="cmp-grid">
+      <div class="cmp-card">
+        <h3>① โครงเหล็กเบา</h3>
+        <div class="cmp-tag" style="background:#16a085">ประหยัด/เร็ว</div>
+        <div class="cmp-price">฿${fmt(optSteel)}</div>
+        <div style="font-size:0.72rem;color:var(--dim);margin-bottom:8px">~฿${fmt(optSteel/t.area)}/ตร.ม.</div>
+        <ul class="cmp-list">
+          <li class="pro">ก่อสร้างเร็วที่สุด (~30-40 วัน)</li>
+          <li class="pro">น้ำหนักเบา กระทบโครงสร้างเดิมน้อย</li>
+          <li class="pro">ราคาถูกที่สุด</li>
+          <li class="con">เก็บเสียง/กันร้อนสู้คอนกรีตไม่ได้</li>
+          <li class="con">อายุการใช้งานสั้นกว่า</li>
+        </ul>
+      </div>
+      <div class="cmp-card best">
+        <h3>② อิฐมวลเบา + เมทัลชีท</h3>
+        <div class="cmp-tag">แนะนำ ⭐ (แบบนี้)</div>
+        <div class="cmp-price">฿${fmt(base)}</div>
+        <div style="font-size:0.72rem;color:var(--dim);margin-bottom:8px">~฿${fmt(t.perSqm)}/ตร.ม.</div>
+        <ul class="cmp-list">
+          <li class="pro">สมดุลราคา/คุณภาพดีที่สุด</li>
+          <li class="pro">กันร้อน กันเสียงดี</li>
+          <li class="pro">งานมาตรฐานทั่วไป หาช่างง่าย</li>
+          <li class="con">ใช้เวลาปานกลาง (~45 วัน)</li>
+        </ul>
+      </div>
+      <div class="cmp-card">
+        <h3>③ คอนกรีตเต็มระบบ</h3>
+        <div class="cmp-tag" style="background:#c0392b">แข็งแรง/ถาวร</div>
+        <div class="cmp-price">฿${fmt(optConc)}</div>
+        <div style="font-size:0.72rem;color:var(--dim);margin-bottom:8px">~฿${fmt(optConc/t.area)}/ตร.ม.</div>
+        <ul class="cmp-list">
+          <li class="pro">แข็งแรง ทนทานที่สุด</li>
+          <li class="pro">กันร้อน กันเสียงดีเยี่ยม</li>
+          <li class="pro">ต่อชั้นได้ในอนาคต</li>
+          <li class="con">ราคาสูงสุด</li>
+          <li class="con">ก่อสร้างนาน + ต้องฐานรากใหญ่</li>
+        </ul>
+      </div>
+    </div>
+    <div class="boq-disclaimer">💡 ราคาทางเลือก ① และ ③ เป็นการประมาณจากฐานราคาแบบปัจจุบัน (②) ด้วยตัวคูณโดยประมาณ — ราคาจริงควรให้ผู้รับเหมาถอดแบบแต่ละทางเลือก | ตัวเลือก ③ ต้องตรวจสอบว่าฐานรากและเสาเข็มรับน้ำหนักเพิ่มได้</div>
+  </div>`;
+}
+
+/* ─────────────────────────────────────────────
+   BOQ มืออาชีพ (Professional / bid-ready)
+   - จัดกลุ่มตามหมวดงานมาตรฐาน
+   - แยกคอลัมน์ ค่าวัสดุ / ค่าแรง / รวมต่อหน่วย / จำนวนเงิน
+   - ใส่ Factor F (ตัวคูณงานก่อสร้างราชการ) เลือกเปิด/ปิดได้
+   - แสดงราคาต่อหน่วยที่ถ่วงเฉลี่ยและสรุปแบบฟอร์มราชการ
+───────────────────────────────────────────── */
+let factorF = 1.30;        // ค่า Factor F เริ่มต้น (งานทั่วไป)
+let useFactorF = false;    // เปิด/ปิดการคูณ Factor F
+
+function setFactorF(val){
+  const n=parseFloat(val);
+  if(!isNaN(n)) factorF=n;
+  renderBOQPro();
+}
+function toggleFactorF(){
+  useFactorF=!useFactorF;
+  renderBOQPro();
+}
+
+function renderBOQPro(){
+  if(!boqData){ return; }
+  const v=getVals();
+  const fmt = n => Math.round(n).toLocaleString('th-TH');
+  const fmt2= n => (+n).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const fmtQ= n => (+n).toLocaleString('th-TH',{maximumFractionDigits:2});
+  const dateStr=v.projDate?formatThaiDate(v.projDate):formatThaiDate(null);
+
+  // group rows by section
+  const sections=[];
+  let cur=null;
+  boqData.forEach(r=>{
+    if(r.isSec){ cur={label:r.label, rows:[], matSum:0, lbrSum:0}; sections.push(cur); }
+    else if(cur){
+      const m=r.qty*(+r.mat), l=r.qty*(+r.labor);
+      cur.rows.push({...r, mTot:m, lTot:l, uRate:(+r.mat)+(+r.labor), tot:m+l});
+      cur.matSum+=m; cur.lbrSum+=l;
+    }
+  });
+
+  let grandMat=0, grandLbr=0;
+  sections.forEach(s=>{ grandMat+=s.matSum; grandLbr+=s.lbrSum; });
+  const directCost = grandMat+grandLbr;
+
+  // Factor F applies to direct cost (vัสดุ+แรง) — standard practice
+  const ff = useFactorF ? factorF : 1;
+  const afterFactor = directCost * ff;
+  const factorAdded = afterFactor - directCost;
+
+  // if Factor F off, fall back to manual OH + contingency (reuse boqTotals overrides)
+  const T = boqTotals();
+  let contingAmt, ohAmt, beforeVat, vat, grand;
+  if(useFactorF){
+    // Factor F already bundles OH/profit/contingency; only add VAT
+    contingAmt=0; ohAmt=factorAdded;
+    beforeVat=afterFactor;
+    vat=beforeVat*0.07;
+    grand=beforeVat+vat;
+  } else {
+    contingAmt=T.contingAmt; ohAmt=T.oh;
+    beforeVat=directCost+contingAmt+ohAmt;
+    vat=beforeVat*0.07;
+    grand=beforeVat+vat;
+  }
+  const perSqm=grand/(v.eW*v.eL);
+
+  // ── build section tables
+  let body='';
+  sections.forEach((s,si)=>{
+    body+=`<tr class="pro-sec"><td colspan="9">${s.label}</td></tr>`;
+    s.rows.forEach(r=>{
+      body+=`<tr>
+        <td class="pro-no">${r.no}</td>
+        <td class="pro-desc">${r.desc}${r.note?`<div class="pro-note">${r.note}</div>`:''}</td>
+        <td class="num">${fmtQ(r.qty)}</td>
+        <td class="pro-unit">${r.unit}</td>
+        <td class="num pro-mat">${(+r.mat)>0?fmt2(+r.mat):'-'}</td>
+        <td class="num pro-lbr">${(+r.labor)>0?fmt2(+r.labor):'-'}</td>
+        <td class="num">${fmt2(r.uRate)}</td>
+        <td class="num pro-mat">${r.mTot>0?fmt(r.mTot):'-'}</td>
+        <td class="num pro-lbr">${r.lTot>0?fmt(r.lTot):'-'}</td>
+      </tr>`;
+    });
+    body+=`<tr class="pro-subtotal">
+      <td></td><td style="text-align:right">รวมหมวด ${s.label.split('.')[0]}</td>
+      <td colspan="4"></td><td class="num">${fmt(s.matSum+s.lbrSum)}</td>
+      <td class="num pro-mat">${fmt(s.matSum)}</td>
+      <td class="num pro-lbr">${fmt(s.lbrSum)}</td>
+    </tr>`;
+  });
+
+  document.getElementById('boqpro-content').innerHTML=`
+  <div class="rpt-wrap pro-wrap">
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+      <button class="boq-print-btn" style="float:none;margin:0" onclick="window.print()">🖨️ พิมพ์ / PDF</button>
+      <button class="boq-print-btn" style="float:none;margin:0;background:${useFactorF?'#2d7a4f':'#888'}" onclick="toggleFactorF()">
+        ${useFactorF?'✓ ใช้ Factor F':'✗ ปิด Factor F'}
+      </button>
+      <span style="font-size:0.74rem;color:var(--dim)">Factor F =
+        <input type="number" step="0.01" value="${factorF}" onchange="setFactorF(this.value)" ${useFactorF?'':'disabled'}
+          style="width:62px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;font-family:'Share Tech Mono',monospace;text-align:right">
+      </span>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--blue);padding-bottom:8px;margin-bottom:4px">
+      <div>
+        <div style="font-size:1.05rem;font-weight:700;color:var(--blue)">บัญชีแสดงปริมาณงานและราคา (BILL OF QUANTITIES)</div>
+        <div style="font-size:0.78rem;color:#333;margin-top:2px">โครงการ: <b>${v.projName}</b></div>
+        <div style="font-size:0.74rem;color:var(--dim)">เจ้าของงาน: ${v.projOwner} &nbsp;|&nbsp; สถานที่: ............................................</div>
+      </div>
+      <div style="text-align:right;font-family:'Share Tech Mono',monospace;font-size:0.72rem;color:var(--dim);line-height:1.9">
+        เลขที่: ${v.projRev}<br>วันที่: ${dateStr}<br>หน่วย: บาท
+      </div>
+    </div>
+
+    <div class="pro-scroll">
+    <table class="rpt-table pro-table">
+      <thead>
+        <tr>
+          <th rowspan="2" style="width:38px">ลำดับ</th>
+          <th rowspan="2">รายการ</th>
+          <th rowspan="2" style="width:54px" class="num">ปริมาณ</th>
+          <th rowspan="2" style="width:42px">หน่วย</th>
+          <th colspan="3" style="text-align:center;border-bottom:1px solid #1e4f6f">ราคาต่อหน่วย (บาท)</th>
+          <th colspan="2" style="text-align:center;border-bottom:1px solid #1e4f6f">จำนวนเงิน (บาท)</th>
+        </tr>
+        <tr>
+          <th style="width:66px" class="num">ค่าวัสดุ</th>
+          <th style="width:62px" class="num">ค่าแรง</th>
+          <th style="width:64px" class="num">รวม</th>
+          <th style="width:82px" class="num">ค่าวัสดุ</th>
+          <th style="width:78px" class="num">ค่าแรง</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${body}
+        <tr style="height:6px"><td colspan="9"></td></tr>
+        <tr class="pro-grand">
+          <td colspan="6" style="text-align:right">รวมค่างานทั้งหมด (Direct Cost)</td>
+          <td class="num">${fmt(directCost)}</td>
+          <td class="num pro-mat">${fmt(grandMat)}</td>
+          <td class="num pro-lbr">${fmt(grandLbr)}</td>
+        </tr>
+        ${useFactorF ? `
+        <tr class="pro-add"><td colspan="8" style="text-align:right">Factor F = ${factorF} (รวมค่าดำเนินการ กำไร ภาษี ดอกเบี้ย)</td><td class="num">×${factorF}</td></tr>
+        <tr class="pro-add"><td colspan="8" style="text-align:right">ค่างานหลังคูณ Factor F</td><td class="num">${fmt(afterFactor)}</td></tr>
+        ` : `
+        <tr class="pro-add"><td colspan="8" style="text-align:right">เผื่อความผิดพลาด Contingency (${(+T.contingPctShown).toFixed(1)}%)</td><td class="num">${fmt(contingAmt)}</td></tr>
+        <tr class="pro-add"><td colspan="8" style="text-align:right">ค่าดำเนินการและกำไร Overhead (${(+T.ohPctShown).toFixed(1)}%)</td><td class="num">${fmt(ohAmt)}</td></tr>
+        `}
+        <tr class="pro-add"><td colspan="8" style="text-align:right">ภาษีมูลค่าเพิ่ม VAT 7%</td><td class="num">${fmt(vat)}</td></tr>
+        <tr class="pro-total"><td colspan="8" style="text-align:right;font-size:0.92rem">ราคารวมทั้งสิ้น (Grand Total)</td><td class="num" style="font-size:0.95rem">${fmt(grand)}</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="pro-scroll-hint">← ปัดซ้าย-ขวาเพื่อดูคอลัมน์จำนวนเงิน →</div>
+
+    <div style="display:flex;gap:14px;margin:14px 0;flex-wrap:wrap">
+      <div class="boq-card" style="flex:1;min-width:140px"><div class="boq-card-label">ค่าวัสดุรวม (ก่อน F/VAT)</div><div class="boq-card-val" style="color:#1e6fa0">฿${fmt(grandMat)}</div></div>
+      <div class="boq-card" style="flex:1;min-width:140px"><div class="boq-card-label">ค่าแรงรวม (ก่อน F/VAT)</div><div class="boq-card-val" style="color:#b8860b">฿${fmt(grandLbr)}</div></div>
+      <div class="boq-card green" style="flex:1;min-width:140px"><div class="boq-card-label">ราคารวมทั้งสิ้น</div><div class="boq-card-val">฿${fmt(grand)}</div></div>
+      <div class="boq-card red" style="flex:1;min-width:140px"><div class="boq-card-label">ราคาต่อ ตร.ม.</div><div class="boq-card-val">฿${fmt(perSqm)}</div></div>
+    </div>
+
+    <div class="boq-disclaimer">
+      📋 <b>BOQ มืออาชีพ</b> — รูปแบบมาตรฐานสำหรับยื่นประมูล/เสนอราคา แยกค่าวัสดุและค่าแรงตามหลักการถอดแบบ |
+      ${useFactorF
+        ? `<b>Factor F ${factorF}</b> เป็นตัวคูณรวมค่าอำนวยการ กำไร ภาษี ดอกเบี้ย (ใช้กับงานราชการ) — ปรับตามวงเงินและประเภทงานได้`
+        : `กำลังใช้โหมด <b>Overhead + Contingency แยกรายการ</b> (เหมาะกับงานเอกชน) — กดปุ่มเพื่อสลับไปใช้ Factor F`}
+    </div>
+
+    <div class="sig-block" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="sig-box"><div class="sig-line"></div><div class="sig-name">${v.sigContractor||'(.............................)'}</div><div class="sig-role">ผู้ถอดแบบ/ประมาณราคา</div></div>
+      <div class="sig-box"><div class="sig-line"></div><div class="sig-name">${v.sigCompany||'(.............................)'}</div><div class="sig-role">ผู้รับเหมา/ผู้เสนอราคา</div></div>
+      <div class="sig-box"><div class="sig-line"></div><div class="sig-name">${v.projOwner!=='-'?v.projOwner:'(.............................)'}</div><div class="sig-role">ผู้ว่าจ้าง/อนุมัติ</div></div>
+    </div>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   HELPER: company / owner header for documents
+═══════════════════════════════════════════════ */
+function docHeader(v, docTitle, docNo){
+  const dateStr=v.projDate?formatThaiDate(v.projDate):formatThaiDate(null);
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px double var(--blue);padding-bottom:10px;margin-bottom:14px">
+    <div>
+      <div style="font-size:1.05rem;font-weight:800;color:var(--blue)">${v.sigCompany||'[ ชื่อบริษัท/ร้านผู้รับเหมา ]'}</div>
+      <div style="font-size:0.74rem;color:#444;line-height:1.7;margin-top:3px">
+        ${v.coAddr||'[ ที่อยู่ ]'}<br>
+        เลขประจำตัวผู้เสียภาษี: ${v.coTax||'[ เลข 13 หลัก ]'}
+      </div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:1.3rem;font-weight:800;color:var(--ink);letter-spacing:1px">${docTitle}</div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:0.74rem;color:var(--dim);line-height:1.9;margin-top:4px">
+        เลขที่: ${docNo}<br>วันที่: ${dateStr}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   🧾 QUOTATION (ใบเสนอราคา)
+═══════════════════════════════════════════════ */
+function renderQuote(){
+  if(!boqData) return;
+  const t=boqTotals();
+  const v=t.v;
+  const fmt=n=>Math.round(n).toLocaleString('th-TH');
+  const validDate=()=>{ const d=v.projDate?new Date(v.projDate):new Date(); d.setDate(d.getDate()+v.quoteValid); return formatThaiDate(d.toISOString()); };
+
+  // group section subtotals for a summary-level quotation
+  const sections=[];
+  let cur=null;
+  boqData.forEach(r=>{
+    if(r.isSec){ cur={label:r.label, sum:0}; sections.push(cur); }
+    else if(cur){ cur.sum += r.qty*(+r.mat)+r.qty*(+r.labor); }
+  });
+  let rows='';
+  sections.forEach((s,i)=>{
+    rows+=`<tr><td class="num">${i+1}</td><td>${s.label.replace(/^\d+\.\s*/,'')}</td><td class="num">฿${fmt(s.sum)}</td></tr>`;
+  });
+
+  document.getElementById('quote-content').innerHTML=`
+  <div class="rpt-wrap">
+    <div style="margin-bottom:10px"><button class="boq-print-btn" style="float:none" onclick="window.print()">🖨️ พิมพ์ / PDF</button></div>
+    ${docHeader(v,'ใบเสนอราคา','QT-'+(v.projRev||'01'))}
+    <table style="width:100%;font-size:0.82rem;margin-bottom:14px">
+      <tr><td style="width:90px;color:var(--dim);padding:2px 0">เรียน</td><td><b>${v.projOwner!=='-'?v.projOwner:'[ ชื่อผู้ว่าจ้าง ]'}</b></td></tr>
+      <tr><td style="color:var(--dim)">โครงการ</td><td>${v.projName}</td></tr>
+      <tr><td style="color:var(--dim);vertical-align:top">สถานที่</td><td>${v.ownerAddr||'[ สถานที่ก่อสร้าง ]'}</td></tr>
+    </table>
+    <p style="font-size:0.82rem;margin-bottom:10px">บริษัทฯ มีความยินดีเสนอราคางาน<b> ${v.projName}</b> พื้นที่ ${t.area.toFixed(1)} ตร.ม. ตามรายละเอียดดังนี้</p>
+    <table class="rpt-table">
+      <thead><tr><th style="width:50px" class="num">ลำดับ</th><th>หมวดงาน</th><th style="width:130px" class="num">จำนวนเงิน</th></tr></thead>
+      <tbody>${rows}
+        <tr class="total-row"><td colspan="2" style="text-align:right">รวมค่างาน (Direct Cost)</td><td class="num">฿${fmt(t.sub)}</td></tr>
+        <tr style="background:#fff8e8"><td colspan="2" style="text-align:right;font-style:italic">เผื่อความผิดพลาด ${(+t.contingPctShown).toFixed(1)}%</td><td class="num">฿${fmt(t.contingAmt)}</td></tr>
+        <tr style="background:#fff8e8"><td colspan="2" style="text-align:right;font-style:italic">ค่าดำเนินการและกำไร ${(+t.ohPctShown).toFixed(1)}%</td><td class="num">฿${fmt(t.oh)}</td></tr>
+        <tr style="background:#fff8e8"><td colspan="2" style="text-align:right;font-style:italic">ภาษีมูลค่าเพิ่ม VAT 7%</td><td class="num">฿${fmt(t.vat)}</td></tr>
+        <tr class="total-row"><td colspan="2" style="text-align:right;font-size:0.92rem">ราคารวมทั้งสิ้น</td><td class="num" style="font-size:0.95rem">฿${fmt(t.grand)}</td></tr>
+      </tbody>
+    </table>
+    <div style="background:#eaf0f8;border-left:4px solid var(--blue);padding:8px 12px;font-size:0.78rem;margin-bottom:6px">
+      <b>ราคารวมทั้งสิ้น: ฿${fmt(t.grand)} บาท</b> (${bahtText(Math.round(t.grand))})
+    </div>
+    <div style="font-size:0.78rem;line-height:1.9;margin-top:10px">
+      <b>เงื่อนไขการเสนอราคา</b>
+      <ol style="margin-left:20px;margin-top:4px">
+        <li>ยืนราคา ${v.quoteValid} วัน (ถึงวันที่ ${validDate()})</li>
+        <li>ระยะเวลาก่อสร้าง ${v.totalDays} วัน นับจากวันเริ่มงาน</li>
+        <li>การชำระเงินแบ่งงวดตามความคืบหน้า (ดูเอกสารงวดงาน)</li>
+        <li>รับประกันผลงาน ${v.warranty} เดือน นับจากวันส่งมอบ</li>
+        <li>ราคานี้ยังไม่รวมงานที่ระบุใน "เงื่อนไขที่ไม่รวมในราคา" ด้านล่าง</li>
+      </ol>
+    </div>
+    <div style="background:#fff3cd;border-left:4px solid var(--accent);padding:8px 12px;font-size:0.76rem;margin-top:10px;line-height:1.8">
+      <b>⚠️ เงื่อนไขที่ไม่รวมในราคา (Exclusions):</b><br>
+      • ค่าขออนุญาตก่อสร้าง / ค่าวิศวกร-สถาปนิกเซ็นแบบ &nbsp;
+      • ค่าไฟฟ้า-น้ำประปาระหว่างก่อสร้าง &nbsp;
+      • งานฐานรากพิเศษกรณีสภาพดินผิดปกติ &nbsp;
+      • งานตกแต่งเฟอร์นิเจอร์ / เครื่องใช้ไฟฟ้า &nbsp;
+      • ภาษีหัก ณ ที่จ่าย (ถ้ามี) &nbsp;
+      • งานเพิ่มเติมนอกเหนือแบบ (คิดเป็น Variation Order)
+    </div>
+    <div class="sig-block">
+      <div class="sig-box"><div class="sig-line"></div><div class="sig-name">${v.sigContractor||'(.............................)'}</div><div class="sig-role">ผู้เสนอราคา</div><div class="sig-role">${v.sigCompany||''}</div></div>
+      <div class="sig-box"><div class="sig-line"></div><div class="sig-name">${v.projOwner!=='-'?v.projOwner:'(.............................)'}</div><div class="sig-role">ผู้อนุมัติ / ผู้ว่าจ้าง</div><div class="sig-role">วันที่ ......./......./.........</div></div>
+    </div>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   📜 CONTRACT (สัญญาจ้างเหมา)
+═══════════════════════════════════════════════ */
+function renderContract(){
+  if(!boqData) return;
+  const t=boqTotals();
+  const v=t.v;
+  const fmt=n=>Math.round(n).toLocaleString('th-TH');
+  const dateStr=v.projDate?formatThaiDate(v.projDate):formatThaiDate(null);
+  const retAmt = t.grand*v.retention/100;
+
+  // payment milestones text
+  let payText='';
+  if(paymentData){ paymentData.forEach((p,i)=>{ payText+=`<tr><td class="num">${i+1}</td><td>${p.name.replace(/^งวดที่ \d+ — /,'')}</td><td class="num">${p.pct}%</td><td class="num">฿${fmt(t.grand*p.pct/100)}</td></tr>`; }); }
+
+  document.getElementById('contract-content').innerHTML=`
+  <div class="rpt-wrap" style="font-size:0.82rem;line-height:1.7">
+    <div style="margin-bottom:10px"><button class="boq-print-btn" style="float:none" onclick="window.print()">🖨️ พิมพ์ / PDF</button></div>
+    <div style="text-align:center;margin-bottom:14px">
+      <div style="font-size:1.3rem;font-weight:800;color:var(--blue)">สัญญาจ้างเหมาก่อสร้าง</div>
+      <div style="font-size:0.76rem;color:var(--dim)">เลขที่สัญญา CT-${v.projRev||'01'} &nbsp;|&nbsp; ทำ ณ วันที่ ${dateStr}</div>
+    </div>
+
+    <p>สัญญาฉบับนี้ทำขึ้นระหว่าง <b>${v.projOwner!=='-'?v.projOwner:'[ ชื่อผู้ว่าจ้าง ]'}</b> ที่อยู่ ${v.ownerAddr||'[ ที่อยู่ ]'} ซึ่งต่อไปในสัญญานี้เรียกว่า <b>"ผู้ว่าจ้าง"</b> ฝ่ายหนึ่ง</p>
+    <p>กับ <b>${v.sigCompany||v.sigContractor||'[ ชื่อผู้รับเหมา ]'}</b> ที่อยู่ ${v.coAddr||'[ ที่อยู่ ]'} เลขประจำตัวผู้เสียภาษี ${v.coTax||'[ - ]'} ซึ่งต่อไปในสัญญานี้เรียกว่า <b>"ผู้รับจ้าง"</b> อีกฝ่ายหนึ่ง</p>
+    <p>ทั้งสองฝ่ายตกลงทำสัญญากันโดยมีข้อความดังต่อไปนี้</p>
+
+    <p><b>ข้อ 1. ขอบเขตงาน</b><br>
+    ผู้รับจ้างตกลงรับจ้างทำงาน <b>${v.projName}</b> พื้นที่ก่อสร้างประมาณ ${t.area.toFixed(1)} ตารางเมตร ณ สถานที่ ${v.ownerAddr||'[ สถานที่ ]'} ตามแบบรูปและรายการประกอบแบบ (BOQ) ที่แนบท้ายสัญญา ซึ่งถือเป็นส่วนหนึ่งของสัญญานี้</p>
+
+    <p><b>ข้อ 2. ค่าจ้างและการชำระเงิน</b><br>
+    ผู้ว่าจ้างตกลงจ่ายค่าจ้างเป็นเงินทั้งสิ้น <b>฿${fmt(t.grand)} บาท</b> (${bahtText(Math.round(t.grand))}) รวมภาษีมูลค่าเพิ่มแล้ว โดยแบ่งชำระเป็นงวดตามความคืบหน้าของงาน ดังนี้</p>
+    <table class="rpt-table" style="margin:6px 0"><thead><tr><th style="width:40px" class="num">งวด</th><th>เงื่อนไข</th><th style="width:60px" class="num">%</th><th style="width:110px" class="num">จำนวนเงิน</th></tr></thead><tbody>${payText||'<tr><td colspan="4" style="text-align:center;color:var(--dim)">(กำหนดงวดในแท็บ "งวดงาน")</td></tr>'}</tbody></table>
+
+    <p><b>ข้อ 3. ระยะเวลาดำเนินงาน</b><br>
+    ผู้รับจ้างจะเริ่มงานภายใน 7 วันหลังลงนามและรับเงินงวดแรก และจะทำงานให้แล้วเสร็จภายใน <b>${v.totalDays} วัน</b> นับจากวันเริ่มงาน เว้นแต่มีเหตุสุดวิสัยหรือผู้ว่าจ้างสั่งแก้ไขเพิ่มเติม</p>
+
+    <p><b>ข้อ 4. ค่าปรับกรณีล่าช้า</b><br>
+    หากผู้รับจ้างไม่สามารถทำงานให้แล้วเสร็จตามกำหนด ผู้รับจ้างยอมให้ปรับเป็นเงินวันละ <b>฿${fmt(v.penalty)} บาท</b> ต่อวัน นับแต่วันครบกำหนดจนถึงวันส่งมอบงานเสร็จ</p>
+
+    <p><b>ข้อ 5. เงินประกันผลงาน (Retention)</b><br>
+    ผู้ว่าจ้างมีสิทธิหักเงินประกันผลงานร้อยละ <b>${v.retention}%</b> ของค่าจ้างแต่ละงวด (รวมประมาณ ฿${fmt(retAmt)}) และจะคืนให้เมื่อพ้นกำหนดรับประกันผลงาน</p>
+
+    <p><b>ข้อ 6. การรับประกันผลงาน</b><br>
+    ผู้รับจ้างรับประกันความชำรุดบกพร่องของงานเป็นเวลา <b>${v.warranty} เดือน</b> นับจากวันส่งมอบงาน หากเกิดความเสียหายอันเนื่องจากการก่อสร้าง ผู้รับจ้างจะแก้ไขให้โดยไม่คิดค่าใช้จ่าย</p>
+
+    <p><b>ข้อ 7. งานเพิ่ม-ลด (Variation Order)</b><br>
+    การแก้ไข เพิ่มเติม หรือลดงานจากแบบเดิม ต้องตกลงราคาและทำบันทึกเป็นลายลักษณ์อักษรก่อนดำเนินการทุกครั้ง</p>
+
+    <p><b>ข้อ 8. งานที่ไม่รวมในสัญญา</b><br>
+    ค่าขออนุญาตก่อสร้าง, ค่าวิศวกร/สถาปนิกเซ็นแบบ, ค่าไฟฟ้า-น้ำประปาระหว่างก่อสร้าง, งานฐานรากพิเศษกรณีดินผิดปกติ และงานตกแต่ง/เฟอร์นิเจอร์ ไม่รวมอยู่ในสัญญานี้</p>
+
+    <p style="margin-top:14px">สัญญานี้ทำขึ้นสองฉบับมีข้อความตรงกัน ทั้งสองฝ่ายอ่านเข้าใจโดยตลอดแล้วจึงลงลายมือชื่อไว้เป็นสำคัญต่อหน้าพยาน</p>
+
+    <div class="sig-block" style="grid-template-columns:1fr 1fr;margin-top:24px">
+      <div class="sig-box"><div class="sig-line"></div><div class="sig-name">${v.sigContractor||'(.............................)'}</div><div class="sig-role">ผู้รับจ้าง</div><div class="sig-role">${v.sigCompany||''}</div></div>
+      <div class="sig-box"><div class="sig-line"></div><div class="sig-name">${v.projOwner!=='-'?v.projOwner:'(.............................)'}</div><div class="sig-role">ผู้ว่าจ้าง</div></div>
+    </div>
+    <div class="sig-block" style="grid-template-columns:1fr 1fr;margin-top:10px;padding-top:0">
+      <div class="sig-box"><div class="sig-line"></div><div class="sig-name">(.............................)</div><div class="sig-role">พยาน</div></div>
+      <div class="sig-box"><div class="sig-line"></div><div class="sig-name">(.............................)</div><div class="sig-role">พยาน</div></div>
+    </div>
+    <div class="boq-disclaimer" style="margin-top:14px">⚖️ เอกสารนี้เป็นแบบร่างสัญญาเพื่อความสะดวก ควรปรึกษานักกฎหมายก่อนใช้จริงสำหรับงานมูลค่าสูง และแนบ BOQ + แบบก่อสร้างท้ายสัญญาทุกครั้ง</div>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   💵 INVOICE / งวดเบิกเงิน
+═══════════════════════════════════════════════ */
+let invoiceMilestone = 0;  // which milestone is being billed
+function setInvoiceMilestone(i){ invoiceMilestone=+i; renderInvoice(); }
+function renderInvoice(){
+  if(!boqData) return;
+  const t=boqTotals();
+  const v=t.v;
+  const fmt=n=>Math.round(n).toLocaleString('th-TH');
+  if(!paymentData) paymentData=initPayment();
+  if(invoiceMilestone>=paymentData.length) invoiceMilestone=0;
+  const ms=paymentData[invoiceMilestone];
+  const amt=t.grand*ms.pct/100;
+  const ret=amt*v.retention/100;
+  const net=amt-ret;
+  const vatBase=net/1.07;
+  const vatPart=net-vatBase;
+
+  let opts='';
+  paymentData.forEach((p,i)=>{ opts+=`<option value="${i}" ${i===invoiceMilestone?'selected':''}>งวดที่ ${i+1} (${p.pct}%)</option>`; });
+
+  document.getElementById('invoice-content').innerHTML=`
+  <div class="rpt-wrap">
+    <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="boq-print-btn" style="float:none" onclick="window.print()">🖨️ พิมพ์ / PDF</button>
+      <span style="font-size:0.78rem">เลือกงวด: <select onchange="setInvoiceMilestone(this.value)" style="padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-family:'Sarabun',sans-serif">${opts}</select></span>
+    </div>
+    ${docHeader(v,'ใบวางบิล/เบิกงวดงาน','INV-'+(invoiceMilestone+1))}
+    <table style="width:100%;font-size:0.82rem;margin-bottom:12px">
+      <tr><td style="width:100px;color:var(--dim)">เรียกเก็บจาก</td><td><b>${v.projOwner!=='-'?v.projOwner:'[ ผู้ว่าจ้าง ]'}</b></td></tr>
+      <tr><td style="color:var(--dim)">โครงการ</td><td>${v.projName}</td></tr>
+      <tr><td style="color:var(--dim)">งวดที่</td><td><b>${invoiceMilestone+1}</b> — ${ms.name.replace(/^งวดที่ \d+ — /,'')}</td></tr>
+    </table>
+    <table class="rpt-table">
+      <thead><tr><th>รายการ</th><th style="width:140px" class="num">จำนวนเงิน (บาท)</th></tr></thead>
+      <tbody>
+        <tr><td>มูลค่างานงวดที่ ${invoiceMilestone+1} (${ms.pct}% ของ ฿${fmt(t.grand)})</td><td class="num">฿${fmt(amt)}</td></tr>
+        <tr style="color:var(--red)"><td>หัก เงินประกันผลงาน Retention (${v.retention}%)</td><td class="num">-฿${fmt(ret)}</td></tr>
+        <tr class="total-row"><td style="text-align:right">ยอดเบิกสุทธิงวดนี้</td><td class="num">฿${fmt(net)}</td></tr>
+      </tbody>
+    </table>
+    <table style="width:100%;font-size:0.76rem;color:var(--dim);margin-bottom:10px">
+      <tr><td>มูลค่าก่อน VAT</td><td class="num" style="text-align:right">฿${fmt(vatBase)}</td></tr>
+      <tr><td>VAT 7% (ในยอดสุทธิ)</td><td class="num" style="text-align:right">฿${fmt(vatPart)}</td></tr>
+    </table>
+    <div style="background:#eaf0f8;border-left:4px solid var(--blue);padding:8px 12px;font-size:0.82rem">
+      <b>ยอดชำระงวดนี้: ฿${fmt(net)} บาท</b> (${bahtText(Math.round(net))})
+    </div>
+    <div style="font-size:0.76rem;color:var(--dim);margin-top:10px;line-height:1.8">
+      <b>การชำระเงิน:</b> โอนเข้าบัญชี ............................... ธนาคาร ............... เลขที่บัญชี ...............<br>
+      กรุณาชำระภายใน 7 วันนับจากวันที่ในใบวางบิล
+    </div>
+    <div class="sig-block">
+      <div class="sig-box"><div class="sig-line"></div><div class="sig-name">${v.sigContractor||'(.............................)'}</div><div class="sig-role">ผู้วางบิล (ผู้รับเหมา)</div></div>
+      <div class="sig-box"><div class="sig-line"></div><div class="sig-name">(.............................)</div><div class="sig-role">ผู้ตรวจรับงาน/อนุมัติจ่าย</div></div>
+    </div>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   ✅ CHECKLIST (ตรวจรับงาน)
+═══════════════════════════════════════════════ */
+let checklistData=null;
+function initChecklist(){
+  return [
+    {sec:'งานฐานราก-โครงสร้าง',items:['ตำแหน่ง/ระดับฐานรากถูกต้องตามแบบ','เหล็กเสริมขนาด-ระยะถูกต้องก่อนเทคอนกรีต','คอนกรีตได้กำลัง ไม่มีโพรง/รูพรุน','เสา-คานได้ดิ่ง-ได้ระดับ','ระดับพื้นเสมอกับบ้านเดิม']},
+    {sec:'งานผนัง',items:['ผนังได้ดิ่ง ไม่เอียง','ฉาบเรียบ ไม่มีรอยร้าว/โพรง','มุมเสา-คานเก็บเรียบร้อย','รอยต่อผนังเดิม-ใหม่ไม่แตกร้าว']},
+    {sec:'งานหลังคา',items:['โครงหลังคาแข็งแรง ได้ระดับ','มุงเมทัลชีทแนบสนิท ไม่รั่วซึม','ทดสอบฉีดน้ำไม่รั่ว','รางน้ำ-ท่อน้ำฝนระบายได้ดี','ครอบสันเก็บเรียบร้อย']},
+    {sec:'งานพื้น-ผิว',items:['ปูกระเบื้องได้ระดับ ไม่โก่ง/กลวง','ยาแนวเรียบร้อย สม่ำเสมอ','สีทาเรียบ ไม่ด่าง ไม่หลุดลอก','เก็บงานขอบ-มุมเรียบร้อย']},
+    {sec:'งานประตู-หน้าต่าง',items:['ประตู-หน้าต่างเปิด-ปิดคล่อง','ยาแนวรอบวงกบกันน้ำเรียบร้อย','กลอน-มือจับ-กุญแจใช้งานได้','กระจก-มุ้งลวดไม่ชำรุด']},
+    {sec:'งานระบบ',items:['ไฟฟ้าทุกจุดใช้งานได้ มีสายดิน','เต้ารับ-สวิตช์ติดตั้งแน่น','น้ำประปาไหลดี ไม่รั่วซึม','ท่อระบายน้ำไหลสะดวก','ทดสอบเบรกเกอร์ตัดไฟปกติ']},
+    {sec:'ความเรียบร้อยทั่วไป',items:['เก็บขยะ-เศษวัสดุออกหมด','ทำความสะอาดพื้นที่ส่งมอบ','ส่งมอบคู่มือ/ใบรับประกันวัสดุ','ถ่ายรูปงานเสร็จเก็บหลักฐาน']},
+  ];
+}
+function renderChecklist(){
+  if(!checklistData) checklistData=initChecklist();
+  const v=getVals();
+  const dateStr=v.projDate?formatThaiDate(v.projDate):formatThaiDate(null);
+  let body='';
+  let n=0;
+  checklistData.forEach((g,gi)=>{
+    body+=`<tr class="pro-sec"><td colspan="4">${g.sec}</td></tr>`;
+    g.items.forEach((it,ii)=>{
+      n++;
+      body+=`<tr>
+        <td class="num" style="color:var(--dim)">${n}</td>
+        <td>${it}</td>
+        <td style="text-align:center;font-size:1.1rem;cursor:default">☐ ผ่าน</td>
+        <td style="text-align:center;font-size:1.1rem;cursor:default">☐ แก้ไข</td>
+      </tr>`;
+    });
+  });
+  document.getElementById('checklist-content').innerHTML=`
+  <div class="rpt-wrap">
+    <div style="margin-bottom:10px"><button class="boq-print-btn" style="float:none" onclick="window.print()">🖨️ พิมพ์ / PDF</button></div>
+    ${docHeader(v,'รายการตรวจรับงาน','CHK-'+(v.projRev||'01'))}
+    <table style="width:100%;font-size:0.82rem;margin-bottom:12px">
+      <tr><td style="width:90px;color:var(--dim)">โครงการ</td><td><b>${v.projName}</b></td></tr>
+      <tr><td style="color:var(--dim)">วันที่ตรวจ</td><td>${dateStr}</td></tr>
+    </table>
+    <table class="rpt-table">
+      <thead><tr><th style="width:40px" class="num">ที่</th><th>รายการตรวจสอบ</th><th style="width:80px;text-align:center">ผ่าน</th><th style="width:80px;text-align:center">ต้องแก้</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+    <div style="background:#fff3cd;border-left:4px solid var(--accent);padding:8px 12px;font-size:0.78rem;margin-top:6px">
+      <b>หมายเหตุ/รายการที่ต้องแก้ไข:</b><br>
+      <div style="border-bottom:1px dotted #999;height:22px;margin-top:6px"></div>
+      <div style="border-bottom:1px dotted #999;height:22px"></div>
+      <div style="border-bottom:1px dotted #999;height:22px"></div>
+    </div>
+    <div class="sig-block" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="sig-box"><div class="sig-line"></div><div class="sig-name">${v.sigContractor||'(.............................)'}</div><div class="sig-role">ผู้รับเหมา</div></div>
+      <div class="sig-box"><div class="sig-line"></div><div class="sig-name">(.............................)</div><div class="sig-role">ผู้ตรวจงาน</div></div>
+      <div class="sig-box"><div class="sig-line"></div><div class="sig-name">${v.projOwner!=='-'?v.projOwner:'(.............................)'}</div><div class="sig-role">ผู้ว่าจ้าง (รับมอบ)</div></div>
+    </div>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   เลขเป็นข้อความภาษาไทย (บาทถ้วน)
+═══════════════════════════════════════════════ */
+function bahtText(num){
+  if(num===0) return 'ศูนย์บาทถ้วน';
+  const txt1=['','หนึ่ง','สอง','สาม','สี่','ห้า','หก','เจ็ด','แปด','เก้า'];
+  const txt2=['','สิบ','ร้อย','พัน','หมื่น','แสน','ล้าน'];
+  let n=Math.abs(Math.round(num)).toString();
+  let result='';
+  let len=n.length;
+  for(let i=0;i<len;i++){
+    const digit=+n[i];
+    const pos=(len-i-1)%6;
+    if(digit!==0){
+      if(pos===1&&digit===1) result+='สิบ';
+      else if(pos===1&&digit===2) result+='ยี่สิบ';
+      else if(pos===0&&digit===1&&i!==0&&(len-i)>1&&+n[i-1]!==0) result+='เอ็ด';
+      else result+=txt1[digit]+txt2[pos];
+    }
+    if(pos===0&&(len-i-1)>=6) result+='ล้าน';
+  }
+  return result+'บาทถ้วน';
+}
+
+/* ─────────────────────────────────────────────
+   SAVE / LOAD / EXPORT
+───────────────────────────────────────────── */
+function collectState(){
+  const ids=['hW','hL','hH','eW','eL','eH','colSize','footD','footW','pileType','pileDia','pileLen','pileCount','projName','projOwner','projRev','projDate','overhead','rEarth','rConc','rMasonry','rRoof','rFloor','rElec','rPile','conting','sigContractor','sigCompany','totalDays','coAddr','coTax','ownerAddr','warranty','penalty','retention','quoteValid'];
+  const ctrl={};
+  ids.forEach(id=>{ const e=document.getElementById(id); if(e) ctrl[id]=e.value; });
+  return { version:2, savedAt:new Date().toISOString(), ctrl, boqData, paymentData, specData, contingOverride, overheadOverride, factorF, useFactorF, checklistData, invoiceMilestone };
+}
+function saveProject(){
+  const data=collectState();
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  const name=(document.getElementById('projName').value||'project').replace(/\s+/g,'_');
+  a.href=URL.createObjectURL(blob);
+  a.download=`${name}_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  ioStatus('✓ บันทึกแล้ว');
+}
+function loadProject(ev){
+  const file=ev.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const d=JSON.parse(e.target.result);
+      if(d.ctrl){ Object.entries(d.ctrl).forEach(([id,val])=>{ const el=document.getElementById(id); if(el) el.value=val; }); }
+      if(d.boqData){ boqData=d.boqData; boqInited=true; }
+      if(d.paymentData) paymentData=d.paymentData;
+      if(d.specData) specData=d.specData;
+      if(d.contingOverride) contingOverride=d.contingOverride;
+      if(d.overheadOverride) overheadOverride=d.overheadOverride;
+      if(typeof d.factorF==='number') factorF=d.factorF;
+      if(typeof d.useFactorF==='boolean') useFactorF=d.useFactorF;
+      if(d.checklistData) checklistData=d.checklistData;
+      if(typeof d.invoiceMilestone==='number') invoiceMilestone=d.invoiceMilestone;
+      update(); renderBOQ();
+      ioStatus('✓ เปิดไฟล์สำเร็จ');
+    }catch(err){ alert('ไฟล์ไม่ถูกต้อง: '+err.message); }
+  };
+  reader.readAsText(file);
+}
+function exportBOQ_CSV(){
+  if(!boqData){ alert('ยังไม่มีข้อมูล BOQ'); return; }
+  const t=boqTotals();
+  let csv='\uFEFF'; // BOM for Thai in Excel
+  csv+='ที่,รายการ,จำนวน,หน่วย,วัสดุ/หน่วย,รวมวัสดุ,แรง/หน่วย,รวมแรง,รวม,หมายเหตุ\n';
+  boqData.forEach(r=>{
+    if(r.isSec){ csv+=`"${r.label}",,,,,,,,,\n`; }
+    else{
+      const m=r.qty*(+r.mat),l=r.qty*(+r.labor);
+      csv+=`"${r.no}","${r.desc}",${r.qty},"${r.unit}",${r.mat},${m},${r.labor},${l},${m+l},"${r.note||''}"\n`;
+    }
+  });
+  csv+=`,,,,,${Math.round(t.totalMat)},,${Math.round(t.totalLabor)},${Math.round(t.sub)},รวมก่อน OH/VAT\n`;
+  csv+=`,,,,,,,,"${Math.round(t.contingAmt)}","Contingency ${t.v.conting}%"\n`;
+  csv+=`,,,,,,,,"${Math.round(t.oh)}","Overhead ${t.v.overhead}%"\n`;
+  csv+=`,,,,,,,,"${Math.round(t.vat)}","VAT 7%"\n`;
+  csv+=`,,,,,,,,"${Math.round(t.grand)}","รวมทั้งสิ้น"\n`;
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  const name=(document.getElementById('projName').value||'BOQ').replace(/\s+/g,'_');
+  a.href=URL.createObjectURL(blob);
+  a.download=`BOQ_${name}.csv`;
+  a.click();
+  ioStatus('✓ Export CSV แล้ว (เปิดด้วย Excel)');
+}
+function ioStatus(msg){
+  const e=document.getElementById('io-status');
+  if(e){ e.textContent=msg; setTimeout(()=>{e.textContent='';},2500); }
+}
+
+/* ─────────────────────────────────────────────
+   Main update
+───────────────────────────────────────────── */
+function update() {
+  const v = getVals();
+  // Update labels
+  document.getElementById('hW_v').textContent = v.hW.toFixed(2)+' ม.';
+  document.getElementById('hL_v').textContent = v.hL.toFixed(2)+' ม.';
+  document.getElementById('hH_v').textContent = v.hH.toFixed(2)+' ม.';
+  document.getElementById('eW_v').textContent = v.eW.toFixed(2)+' ม.';
+  document.getElementById('eL_v').textContent = v.eL.toFixed(2)+' ม.';
+  document.getElementById('eH_v').textContent = v.eH.toFixed(2)+' ม.';
+  document.getElementById('colSize_v').textContent = (v.colSize*100|0)+' ซม.';
+  document.getElementById('footD_v').textContent = v.footD.toFixed(2)+' ม.';
+  document.getElementById('footW_v').textContent = v.footW.toFixed(2)+' ม.';
+  document.getElementById('pileDia_v').textContent = v.pileDia+' ซม.';
+  document.getElementById('pileLen_v').textContent = v.pileLen.toFixed(1)+' ม.';
+  document.getElementById('pileCount_v').textContent = v.pileCount+' ต้น';
+  document.getElementById('overhead_v').textContent = v.overhead+'%';
+  document.getElementById('rEarth_v').textContent = v.rEarth.toLocaleString();
+  document.getElementById('rConc_v').textContent = v.rConc.toLocaleString();
+  document.getElementById('rMasonry_v').textContent = v.rMasonry.toLocaleString();
+  document.getElementById('rRoof_v').textContent = v.rRoof.toLocaleString();
+  document.getElementById('rFloor_v').textContent = v.rFloor.toLocaleString();
+  document.getElementById('rElec_v').textContent = v.rElec.toLocaleString();
+  document.getElementById('rPile_v').textContent = v.rPile.toLocaleString();
+  document.getElementById('conting_v').textContent = v.conting+'%';
+  document.getElementById('totalDays_v').textContent = v.totalDays+' วัน';
+  document.getElementById('warranty_v').textContent = v.warranty+' ด.';
+  document.getElementById('penalty_v').textContent = v.penalty.toLocaleString();
+  document.getElementById('retention_v').textContent = v.retention+'%';
+  document.getElementById('quoteValid_v').textContent = v.quoteValid+' วัน';
+  document.getElementById('areaBadge').textContent = `พื้นที่: ${(v.eW*v.eL).toFixed(2)} ตร.ม.`;
+
+  // Update all title blocks with project info
+  const dateStr = v.projDate ? formatThaiDate(v.projDate) : formatThaiDate(null);
+  document.querySelectorAll('[id^="tb-proj-"]').forEach(el => el.textContent = v.projName);
+  document.querySelectorAll('[id^="tb-date-"]').forEach(el => el.textContent = dateStr);
+  document.querySelectorAll('[id^="tb-rev-"]').forEach(el => el.textContent = v.projRev);
+
+  drawSiteplan(v);
+  drawFloorplan(v);
+  drawSection(v);
+  drawElevation(v);
+  drawStructure(v);
+  drawPile(v);
+  drawElectrical(v);
+  renderTimeline();
+  // Ensure BOQ data exists before any report reads boqTotals()
+  if (!boqInited) {
+    boqData = initBoqData(v);
+    boqInited = true;
+  }
+  // reports that depend on BOQ totals refresh if not editing
+  if (!(document.activeElement && document.activeElement.isContentEditable)) {
+    renderPayment();
+    renderSpec();
+    renderCompare();
+    renderBOQ();
+    renderBOQPro();
+    renderQuote();
+    renderContract();
+    renderInvoice();
+    renderChecklist();
+  }
+}
+
+function showTab(name, btn) {
+  document.querySelectorAll('.drawing-sheet').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+}
+
+function togglePanel() {
+  const pb = document.getElementById('panelBody');
+  pb.classList.toggle('collapsed');
+  document.querySelector('.panel-toggle').textContent = pb.classList.contains('collapsed') ? '▼ แสดง' : '▲ ซ่อน';
+}
+
+// Init — set today's date
+document.getElementById('projDate').value = new Date().toISOString().split('T')[0];
+update();
+</script>
+</body>
+</html>

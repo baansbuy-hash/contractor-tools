@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>เครื่องมือถอดราคางานรีโนเวท</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#eceae3; --paper:#fcfaf5; --ink:#20242e; --blue:#16314f; --blue2:#1e6fa0;
+    --red:#b5402e; --gold:#c79a3e; --green:#2d7a4f; --dim:#6c7686; --grid:#c3cdd8;
+    --mat:#1e6fa0; --lbr:#b5862a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);font-family:'Sarabun',sans-serif;color:var(--ink)}
+
+  /* Control panel */
+  .control-panel{background:var(--blue);color:#fff;position:sticky;top:0;z-index:100;box-shadow:0 4px 20px rgba(0,0,0,.3)}
+  .panel-header{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;border-bottom:1px solid rgba(255,255,255,.15)}
+  .panel-header h1{font-size:1rem;font-weight:800;letter-spacing:.03em}
+  .panel-toggle{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:4px 12px;border-radius:4px;cursor:pointer;font-family:'Sarabun',sans-serif;font-size:.8rem}
+  .panel-body{padding:14px 20px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px 22px}
+  .panel-body.collapsed{display:none}
+  .ctrl-group{display:flex;flex-direction:column;gap:4px}
+  .ctrl-label{font-size:.72rem;color:var(--gold);font-family:'Share Tech Mono',monospace;letter-spacing:.04em}
+  .ctrl-row{display:flex;align-items:center;gap:8px}
+  .ctrl-row input[type=range]{flex:1;accent-color:var(--gold);cursor:pointer;height:4px}
+  .ctrl-val{font-family:'Share Tech Mono',monospace;font-size:.85rem;font-weight:bold;color:#fff;min-width:52px;text-align:right;background:rgba(255,255,255,.1);padding:2px 6px;border-radius:3px}
+  .ctrl-row input[type=text],.ctrl-row input[type=date],.ctrl-row select{flex:1;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.3);color:#fff;padding:4px 8px;border-radius:3px;font-family:'Sarabun',sans-serif;font-size:.82rem}
+  .section-label{font-size:.68rem;color:rgba(255,255,255,.5);grid-column:1/-1;text-transform:uppercase;letter-spacing:.1em;margin-top:4px;border-top:1px solid rgba(255,255,255,.12);padding-top:8px}
+
+  /* Work-type toggle chips */
+  .work-chips{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px}
+  .work-chip{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.25);border-radius:8px;padding:8px 12px;cursor:pointer;transition:all .15s;font-size:.82rem;user-select:none}
+  .work-chip:hover{background:rgba(255,255,255,.15)}
+  .work-chip.on{background:var(--gold);border-color:var(--gold);color:var(--blue);font-weight:700}
+  .work-chip .chk{font-size:.9rem}
+
+  .area-badge{background:var(--gold);color:var(--blue);font-family:'Share Tech Mono',monospace;font-size:.8rem;font-weight:bold;padding:6px 14px;border-radius:4px;white-space:nowrap;align-self:flex-end}
+
+  /* Page */
+  .page-wrapper{max-width:1000px;margin:0 auto;padding:16px}
+  .tab-nav{display:flex;gap:4px;flex-wrap:wrap}
+  .tab-btn{padding:7px 13px;background:#d8d2c6;border:none;cursor:pointer;font-family:'Sarabun',sans-serif;font-size:.79rem;font-weight:600;color:var(--dim);border-radius:5px 5px 0 0;transition:all .15s}
+  .tab-btn.active{background:var(--paper);color:var(--blue);border-bottom:3px solid var(--gold)}
+  .tab-btn:hover:not(.active){background:#cbc4b5}
+  .tab-btn.disabled{opacity:.35;cursor:not-allowed;text-decoration:line-through}
+
+  .io-bar{display:flex;gap:6px;flex-wrap:wrap;padding:8px 0;align-items:center}
+  .io-btn{background:#fff;border:1px solid var(--blue);color:var(--blue);padding:6px 14px;border-radius:5px;cursor:pointer;font-family:'Sarabun',sans-serif;font-size:.78rem;font-weight:600;transition:all .15s}
+  .io-btn:hover{background:var(--blue);color:#fff}
+
+  .sheet{background:var(--paper);border:2px solid var(--ink);display:none;position:relative}
+  .sheet.active{display:block}
+  .grid-bg{position:absolute;inset:0;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:20px 20px;opacity:.22;pointer-events:none}
+  .canvas-area{padding:16px 20px;position:relative;min-height:420px}
+  svg{width:100%;height:auto;display:block;position:relative}
+  .stamp{position:absolute;right:20px;top:14px;width:72px;height:72px;border:3px solid var(--red);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--red);font-family:'Share Tech Mono',monospace;font-size:.5rem;font-weight:bold;text-align:center;opacity:.5;transform:rotate(-15deg);line-height:1.4;pointer-events:none}
+
+  .title-block{border-top:2px solid var(--ink);display:grid;grid-template-columns:1fr 1fr 1fr 150px;font-family:'Share Tech Mono',monospace;font-size:.68rem}
+  .tb-cell{border-right:1px solid var(--ink);padding:5px 10px;line-height:1.6}
+  .tb-cell:last-child{border-right:none}
+  .tb-label{color:var(--dim);font-size:.62rem;display:block}
+  .tb-value{color:var(--ink);font-weight:bold}
+  .tb-title{font-size:.85rem;color:var(--blue)}
+
+  .notes-panel{background:#fff8ec;border:1px solid var(--gold);border-left:4px solid var(--gold);padding:10px 16px;margin:12px 18px;font-size:.78rem;line-height:1.9}
+  .notes-panel h4{color:var(--blue);font-size:.82rem;margin-bottom:4px}
+  .notes-panel li{margin-left:18px}
+  .notes-panel .dyn{color:var(--red);font-weight:600}
+
+  /* Tables */
+  .rpt-wrap{font-family:'Sarabun',sans-serif}
+  .rpt-title{font-size:1.05rem;font-weight:800;color:var(--blue);margin-bottom:4px}
+  .rpt-sub{font-size:.8rem;color:var(--dim);margin-bottom:14px}
+  .boq-table,.rpt-table{width:100%;border-collapse:collapse;font-size:.8rem;margin-bottom:12px}
+  .boq-table th,.rpt-table th{background:var(--blue);color:#fff;padding:7px 9px;text-align:left;font-size:.72rem;font-family:'Share Tech Mono',monospace}
+  .boq-table th.num,.rpt-table th.num{text-align:right}
+  .boq-table td,.rpt-table td{padding:5px 9px;border-bottom:1px solid #ddd8cc;vertical-align:top}
+  .boq-table td.num,.rpt-table td.num{text-align:right;font-family:'Share Tech Mono',monospace;font-size:.78rem}
+  .boq-table tr.section-row td{background:#e8eef6;font-weight:700;color:var(--blue);font-size:.78rem}
+  .boq-table tr.subtotal-row td{background:#d9ece1;font-weight:600;color:var(--green);font-family:'Share Tech Mono',monospace}
+  .boq-table tr.overhead-row td{background:#fbf2d8;font-style:italic}
+  .boq-table tr.total-row td{background:var(--blue);color:#fff;font-weight:700;font-family:'Share Tech Mono',monospace}
+  .boq-table [contenteditable]:hover{background:#fff6d4;box-shadow:inset 0 -2px 0 var(--gold);border-radius:2px}
+  .boq-table [contenteditable]:focus{background:#fffbe9;box-shadow:inset 0 0 0 2px var(--gold);border-radius:2px;outline:none}
+  .work-badge{display:inline-block;font-size:.62rem;padding:1px 7px;border-radius:9px;color:#fff;font-family:'Sarabun',sans-serif;font-weight:600;vertical-align:middle}
+
+  .print-btn{background:var(--blue);color:#fff;border:none;padding:7px 16px;border-radius:5px;cursor:pointer;font-family:'Sarabun',sans-serif;font-size:.82rem}
+  .print-btn:hover{background:#0e2236}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0}
+  .card{background:#fff;border:1px solid #ddd;border-left:4px solid var(--blue);padding:10px 14px;border-radius:3px}
+  .card.red{border-left-color:var(--red)} .card.green{border-left-color:var(--green)} .card.gold{border-left-color:var(--gold)}
+  .card-label{font-size:.7rem;color:var(--dim);font-family:'Share Tech Mono',monospace}
+  .card-val{font-size:1.15rem;font-weight:800;margin-top:2px}
+  .card-sub{font-size:.72rem;color:var(--dim)}
+
+  .sig-block{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:28px;padding-top:18px}
+  .sig-box{text-align:center}
+  .sig-line{border-top:1px dotted #555;margin:38px 18px 8px}
+  .sig-name{font-size:.85rem;font-weight:600}
+  .sig-role{font-size:.74rem;color:var(--dim)}
+
+  .empty-note{padding:40px 20px;text-align:center;color:var(--dim);font-size:.9rem}
+
+  @media (max-width:600px){.title-block{grid-template-columns:1fr 1fr}.panel-body{grid-template-columns:1fr 1fr}}
+  @media print{
+    @page{size:A4 landscape;margin:8mm}
+    .control-panel,.tab-nav,.io-bar,.print-btn,[onclick*="del"],[onclick*="add"],[title*="ลบ"],[onclick*="PriceSearch"]{display:none!important}
+    body{background:#fff}.page-wrapper{max-width:100%;padding:0}
+    .sheet{display:none!important;border:none}.sheet.active{display:block!important}
+    .grid-bg{display:none}.stamp{opacity:.3}
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ════════════════════════════════════════════════
+//  RENOVATE ESTIMATOR — core
+// ════════════════════════════════════════════════
+const NS='http://www.w3.org/2000/svg';
+
+// Work type catalog
+const WORKS = {
+  garage:   { name:'โรงจอดรถ',        icon:'🚗', color:'#1e6fa0', unit:'ตร.ม.' },
+  rear:     { name:'ต่อเติมด้านหลัง',  icon:'🏗️', color:'#b5402e', unit:'ตร.ม.' },
+  awning:   { name:'กันสาด',          icon:'⛱️', color:'#c79a3e', unit:'ตร.ม.' },
+  flooring: { name:'ปูพื้นใหม่',       icon:'🔲', color:'#0f8a8a', unit:'ตร.ม.' },
+  bathroom: { name:'ห้องน้ำ',         icon:'🚿', color:'#2596be', unit:'ห้อง' },
+  ceiling:  { name:'ฝ้าเพดาน',        icon:'☁️', color:'#8a8f98', unit:'ตร.ม.' },
+  partition:{ name:'ผนังเบา/กั้นห้อง', icon:'🧱', color:'#a0673a', unit:'ตร.ม.' },
+  fence:    { name:'รั้ว-กำแพง',      icon:'🧱', color:'#6b7280', unit:'ม.' },
+  doorwin:  { name:'ประตู-หน้าต่าง',   icon:'🚪', color:'#9d6b53', unit:'ชุด' },
+  electric: { name:'ระบบไฟฟ้า',       icon:'⚡', color:'#d4a017', unit:'จุด' },
+  paintIn:  { name:'ทาสีภายใน',       icon:'🎨', color:'#2d7a4f', unit:'ตร.ม.' },
+  paintOut: { name:'ทาสีภายนอก',      icon:'🖌️', color:'#7d5ba6', unit:'ตร.ม.' },
+};
+const HOUSE_TYPES = {
+  townhouse:{ name:'ทาวน์เฮาส์', facadeW:6 },
+  detached: { name:'บ้านเดี่ยว', facadeW:10 },
+  shophouse:{ name:'ตึกแถว',     facadeW:4 },
+};
+
+function fmt(n){ return Math.round(n).toLocaleString('th-TH'); }
+function fmtQ(n){ return (+n).toLocaleString('th-TH',{maximumFractionDigits:2}); }
+function formatThaiDate(iso){
+  const m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const d=iso?new Date(iso):new Date();
+  return `${d.getDate()} ${m[d.getMonth()]} ${d.getFullYear()+543}`;
+}
+function bahtText(num){
+  if(num===0)return 'ศูนย์บาทถ้วน';
+  const t1=['','หนึ่ง','สอง','สาม','สี่','ห้า','หก','เจ็ด','แปด','เก้า'];
+  const t2=['','สิบ','ร้อย','พัน','หมื่น','แสน','ล้าน'];
+  let n=Math.abs(Math.round(num)).toString(),r='',len=n.length;
+  for(let i=0;i<len;i++){
+    const d=+n[i],pos=(len-i-1)%6;
+    if(d!==0){
+      if(pos===1&&d===1)r+='สิบ';
+      else if(pos===1&&d===2)r+='ยี่สิบ';
+      else if(pos===0&&d===1&&i!==0&&(len-i)>1&&+n[i-1]!==0)r+='เอ็ด';
+      else r+=t1[d]+t2[pos];
+    }
+    if(pos===0&&(len-i-1)>=6)r+='ล้าน';
+  }
+  return r+'บาทถ้วน';
+}
+// ════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════
+const state = {
+  proj:{ name:'งานรีโนเวทบ้าน', owner:'นาย/นาง ..................', ownerAddr:'', rev:'R0', date:new Date().toISOString().slice(0,10) },
+  co:{ name:'', contractor:'', addr:'', tax:'', phone:'' },
+  house:'townhouse',
+  works:{ garage:true, rear:false, awning:true, flooring:false, bathroom:false, ceiling:false, partition:false, fence:false, doorwin:false, electric:false, paintIn:true, paintOut:true },
+  dims:{
+    garageW:3, garageL:5,
+    rearW:3, rearL:4, rearH:2.7,
+    rearKitchen:false, rearKitchenType:'standard',
+    awningW:4, awningL:1.5,
+    floorArea2:30, floorType:'tile',
+    bathCount:1, bathLevel:'standard',
+    ceilingArea:40, ceilingType:'gypsum',
+    partitionArea:12, partitionType:'gypsum',
+    fenceLen:15, fenceH:2, fenceType:'block',
+    doorwinCount:4, doorwinType:'alu',
+    electricPoints:10, electricPanel:false,
+    paintInArea:60, paintOutArea:40,
+  },
+  rates:{ // baht per unit, material + labor split handled per-item
+    overhead:15, conting:5, vat:7, warranty:6, penalty:500, retention:5, quoteValid:30, totalDays:30,
+    contingMode:'pct', contingFixed:0, overheadMode:'pct', overheadFixed:0,
+  },
+  boq:null,         // generated line items
+  boqInited:false,
+  payments:null,
+  activeTab:'dashboard',
+  panelOpen:true,
+};
+
+// ════════════════════════════════════════════════
+//  APP RENDER (shell + control panel)
+// ════════════════════════════════════════════════
+function activeWorks(){ return Object.keys(state.works).filter(k=>state.works[k]); }
+
+function renderApp(){
+  const app=document.getElementById('app');
+  app.innerHTML = controlPanelHTML() + pageHTML();
+  bindControls();
+  recalcAll();
+  showTab(state.activeTab);
+}
+
+function controlPanelHTML(){
+  const d=state.dims, r=state.rates;
+  const chip=(k)=>`<div class="work-chip ${state.works[k]?'on':''}" onclick="toggleWork('${k}')"><span class="chk">${state.works[k]?'☑':'☐'}</span>${WORKS[k].icon} ${WORKS[k].name}</div>`;
+  const slider=(id,label,min,max,step,val,unit)=>`
+    <div class="ctrl-group"><span class="ctrl-label">${label}</span>
+      <div class="ctrl-row"><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}">
+      <span class="ctrl-val" id="${id}_v">${val}${unit||''}</span></div></div>`;
+  const text=(id,label,val,ph)=>`
+    <div class="ctrl-group"><span class="ctrl-label">${label}</span>
+      <div class="ctrl-row"><input type="text" id="${id}" value="${val||''}" placeholder="${ph||''}"></div></div>`;
+  const sel=(id,label,opts,cur)=>`
+    <div class="ctrl-group"><span class="ctrl-label">${label}</span>
+      <div class="ctrl-row"><select id="${id}">${opts.map(([v,l])=>`<option value="${v}" ${cur===v?'selected':''}>${l}</option>`).join('')}</select></div></div>`;
+  const check=(id,label,on)=>`
+    <div class="ctrl-group"><span class="ctrl-label">&nbsp;</span>
+      <div class="work-chip ${on?'on':''}" onclick="toggleDim('${id}')" style="justify-content:flex-start"><span class="chk">${on?'☑':'☐'}</span>${label}</div></div>`;
+
+  // dimension controls only for active works
+  let dimCtrls='';
+  if(state.works.garage) dimCtrls+=slider('garageW','โรงจอด: กว้าง (ม.)',2.5,8,0.5,d.garageW,' ม.')+slider('garageL','โรงจอด: ลึก (ม.)',4,8,0.5,d.garageL,' ม.');
+  if(state.works.rear){
+    dimCtrls+=slider('rearW','ต่อหลัง: กว้าง (ม.)',1.5,8,0.5,d.rearW,' ม.')+slider('rearL','ต่อหลัง: ลึก (ม.)',1.5,8,0.5,d.rearL,' ม.')+slider('rearH','ต่อหลัง: สูง (ม.)',2.2,3.5,0.1,d.rearH,' ม.');
+    dimCtrls+=check('rearKitchen','ทำห้องครัวในส่วนต่อเติม',d.rearKitchen);
+    if(d.rearKitchen) dimCtrls+=sel('rearKitchenType','ระดับห้องครัว',[['basic','ครัวเบื้องต้น (เคาน์เตอร์ปูน+ซิงค์)'],['standard','ครัวมาตรฐาน (บิวท์อิน+ตู้)'],['premium','ครัวพรีเมียม (ครบชุด+เครื่องดูดควัน)']],d.rearKitchenType);
+  }
+  if(state.works.awning) dimCtrls+=slider('awningW','กันสาด: กว้าง (ม.)',1,12,0.5,d.awningW,' ม.')+slider('awningL','กันสาด: ยื่น (ม.)',0.8,3,0.1,d.awningL,' ม.');
+  if(state.works.flooring){
+    dimCtrls+=slider('floorArea2','ปูพื้น: พื้นที่ (ตร.ม.)',5,200,1,d.floorArea2,' ตร.ม.');
+    dimCtrls+=sel('floorType','ชนิดพื้น',[['tile','กระเบื้องแกรนิตโต้ 60×60'],['ceramic','กระเบื้องเซรามิก 30×30/40×40'],['spc','พื้น SPC คลิกล็อก'],['laminate','พื้นลามิเนต']],d.floorType);
+  }
+  if(state.works.bathroom){
+    dimCtrls+=slider('bathCount','ห้องน้ำ: จำนวน (ห้อง)',1,5,1,d.bathCount,' ห้อง');
+    dimCtrls+=sel('bathLevel','ระดับห้องน้ำ',[['basic','รีโนเวทเบื้องต้น (เปลี่ยนสุขภัณฑ์)'],['standard','ทำใหม่มาตรฐาน (กระเบื้อง+กันซึม)'],['premium','พรีเมียม (ครบชุด+ฉากกั้น+เครื่องทำน้ำอุ่น)']],d.bathLevel);
+  }
+  if(state.works.ceiling){
+    dimCtrls+=slider('ceilingArea','ฝ้าเพดาน: พื้นที่ (ตร.ม.)',5,200,1,d.ceilingArea,' ตร.ม.');
+    dimCtrls+=sel('ceilingType','ชนิดฝ้า',[['gypsum','ฝ้ายิปซัมฉาบเรียบ'],['tbar','ฝ้าทีบาร์ (T-Bar) 60×60'],['smartboard','ฝ้าสมาร์ทบอร์ด (กันชื้น)']],d.ceilingType);
+  }
+  if(state.works.partition){
+    dimCtrls+=slider('partitionArea','กั้นห้อง: พื้นที่ผนัง (ตร.ม.)',3,80,1,d.partitionArea,' ตร.ม.');
+    dimCtrls+=sel('partitionType','ชนิดผนัง',[['gypsum','โครงเบา+ยิปซัม 2 หน้า'],['smartboard','โครงเบา+สมาร์ทบอร์ด'],['block','ก่ออิฐมวลเบา']],d.partitionType);
+  }
+  if(state.works.fence){
+    dimCtrls+=slider('fenceLen','รั้ว: ความยาว (ม.)',2,50,1,d.fenceLen,' ม.')+slider('fenceH','รั้ว: ความสูง (ม.)',1,3,0.1,d.fenceH,' ม.');
+    dimCtrls+=sel('fenceType','ชนิดรั้ว',[['block','ก่ออิฐบล็อก/มวลเบา ฉาบ'],['precast','รั้วสำเร็จรูป (Precast)'],['metal','รั้วเหล็ก/สแตนเลส']],d.fenceType);
+  }
+  if(state.works.doorwin){
+    dimCtrls+=slider('doorwinCount','ประตู-หน้าต่าง: จำนวน (ชุด)',1,20,1,d.doorwinCount,' ชุด');
+    dimCtrls+=sel('doorwinType','ชนิดวัสดุ',[['alu','อะลูมิเนียม'],['upvc','UPVC'],['wood','ไม้/ไม้เอ็นจิเนียร์']],d.doorwinType);
+  }
+  if(state.works.electric){
+    dimCtrls+=slider('electricPoints','ระบบไฟ: จำนวนจุด',2,40,1,d.electricPoints,' จุด');
+    dimCtrls+=check('electricPanel','เปลี่ยนตู้ไฟ/Consumer Unit ใหม่',d.electricPanel);
+  }
+  if(state.works.paintIn) dimCtrls+=slider('paintInArea','ทาสีใน: พื้นที่ผนัง (ตร.ม.)',10,400,5,d.paintInArea,' ตร.ม.');
+  if(state.works.paintOut) dimCtrls+=slider('paintOutArea','ทาสีนอก: พื้นที่ผนัง (ตร.ม.)',10,400,5,d.paintOutArea,' ตร.ม.');
+
+  return `
+  <div class="control-panel">
+    <div class="panel-header">
+      <h1>🔧 เครื่องมือถอดราคางานรีโนเวท</h1>
+      <button class="panel-toggle" onclick="state.panelOpen=!state.panelOpen;document.getElementById('pbody').classList.toggle('collapsed',!state.panelOpen)">▲ ซ่อน/แสดง</button>
+    </div>
+    <div class="panel-body ${state.panelOpen?'':'collapsed'}" id="pbody">
+
+      <div class="section-label">🧩 เลือกงานที่จะทำ (เลือกได้หลายอย่าง)</div>
+      <div class="work-chips">${Object.keys(WORKS).map(chip).join('')}</div>
+
+      <div class="section-label">🏠 ประเภทบ้าน</div>
+      <div class="ctrl-group"><span class="ctrl-label">ประเภทบ้าน</span>
+        <div class="ctrl-row"><select id="house">${Object.entries(HOUSE_TYPES).map(([k,v])=>`<option value="${k}" ${state.house===k?'selected':''}>${v.name}</option>`).join('')}</select></div></div>
+
+      <div class="section-label">📐 ขนาดงาน</div>
+      ${dimCtrls||'<div style="grid-column:1/-1;color:rgba(255,255,255,.5);font-size:.8rem">เลือกงานด้านบนเพื่อกำหนดขนาด</div>'}
+
+      <div class="section-label">📋 ข้อมูลโครงการ</div>
+      ${text('pName','ชื่อโครงการ',state.proj.name)}
+      ${text('pOwner','ชื่อเจ้าของ',state.proj.owner)}
+      ${text('pOwnerAddr','สถานที่/ที่อยู่หน้างาน',state.proj.ownerAddr,'ที่อยู่')}
+      <div class="ctrl-group"><span class="ctrl-label">วันที่ (พ.ศ.)</span><div class="ctrl-row"><input type="date" id="pDate" value="${state.proj.date}"></div></div>
+      ${text('pRev','เลขที่แบบ (Rev.)',state.proj.rev)}
+
+      <div class="section-label">🏢 ข้อมูลผู้รับเหมา</div>
+      ${text('cName','ชื่อบริษัท/ร้าน',state.co.name,'ชื่อกิจการ')}
+      ${text('cContractor','ชื่อผู้รับเหมา',state.co.contractor,'ชื่อ-สกุล')}
+      ${text('cAddr','ที่อยู่บริษัท',state.co.addr,'ที่อยู่')}
+      ${text('cTax','เลขผู้เสียภาษี',state.co.tax,'0-0000-00000-00-0')}
+      ${text('cPhone','เบอร์โทร',state.co.phone,'08x-xxx-xxxx')}
+
+      <div class="section-label">💰 อัตรา / เงื่อนไข</div>
+      ${slider('overhead','กำไร/ดำเนินการ Overhead (%)',5,30,1,r.overhead,'%')}
+      ${slider('conting','เผื่อความผิดพลาด (%)',0,20,1,r.conting,'%')}
+      ${slider('vat','ภาษีมูลค่าเพิ่ม VAT (%)',0,10,0.5,r.vat,'%')}
+      ${slider('totalDays','ระยะเวลาก่อสร้าง (วัน)',7,90,1,r.totalDays,' วัน')}
+      ${slider('warranty','รับประกันผลงาน (เดือน)',0,24,1,r.warranty,' ด.')}
+      ${slider('penalty','ค่าปรับล่าช้า (บ./วัน)',0,5000,100,r.penalty,'')}
+      ${slider('retention','เงินประกันผลงาน (%)',0,10,1,r.retention,'%')}
+      ${slider('quoteValid','ยืนราคา (วัน)',7,90,7,r.quoteValid,' วัน')}
+
+      <div class="area-badge" id="areaBadge">—</div>
+    </div>
+  </div>`;
+}
+
+function pageHTML(){
+  const tabs=[
+    ['dashboard','📊 Dashboard'],
+    ['drawing','📐 แบบก่อสร้าง'],
+    ['boq','💰 BOQ ถอดราคา'],
+    ['quote','🧾 ใบเสนอราคา'],
+    ['contract','📜 สัญญาจ้าง'],
+    ['invoice','💵 ใบเบิกงวด'],
+  ];
+  const btns=tabs.map(([k,l])=>`<button class="tab-btn" id="tabbtn-${k}" onclick="showTab('${k}')">${l}</button>`).join('');
+  const sheet=(k)=>`<div class="sheet" id="tab-${k}"><div class="canvas-area" style="padding:0"><div class="grid-bg"></div><div id="${k}-content" style="position:relative;padding:18px 22px"></div></div></div>`;
+  return `
+  <div class="page-wrapper">
+    <div class="tab-nav">${btns}</div>
+    <div class="io-bar">
+      <button class="io-btn" onclick="saveProject()">💾 บันทึก (.json)</button>
+      <label class="io-btn" style="cursor:pointer">📂 เปิดไฟล์<input type="file" accept=".json" onchange="loadProject(event)" style="display:none"></label>
+      <button class="io-btn" onclick="exportCSV()">📊 Export BOQ (CSV)</button>
+      <button class="io-btn" onclick="resetBOQ()">↻ คำนวณ BOQ ใหม่</button>
+      <span id="ioStatus" style="font-size:.72rem;color:var(--green);font-family:'Share Tech Mono',monospace"></span>
+    </div>
+    ${tabs.map(([k])=>sheet(k)).join('')}
+  </div>`;
+}
+
+function bindControls(){
+  // sliders
+  const sl=['garageW','garageL','rearW','rearL','rearH','awningW','awningL','floorArea2','bathCount','ceilingArea','partitionArea','fenceLen','fenceH','doorwinCount','electricPoints','paintInArea','paintOutArea','overhead','conting','vat','totalDays','warranty','penalty','retention','quoteValid'];
+  sl.forEach(id=>{ const e=document.getElementById(id); if(e) e.oninput=()=>onSlider(id,e.value); });
+  // texts
+  const tx={pName:['proj','name'],pOwner:['proj','owner'],pOwnerAddr:['proj','ownerAddr'],pRev:['proj','rev'],
+            cName:['co','name'],cContractor:['co','contractor'],cAddr:['co','addr'],cTax:['co','tax'],cPhone:['co','phone']};
+  Object.entries(tx).forEach(([id,[grp,key]])=>{ const e=document.getElementById(id); if(e) e.oninput=()=>{ state[grp][key]=e.value; softRefresh(); }; });
+  const pd=document.getElementById('pDate'); if(pd) pd.oninput=()=>{ state.proj.date=pd.value; softRefresh(); };
+  const hs=document.getElementById('house'); if(hs) hs.onchange=()=>{ state.house=hs.value; recalcAll(); refreshActive(); };
+  // selects that regenerate BOQ
+  const selMap={rearKitchenType:'rearKitchenType',floorType:'floorType',bathLevel:'bathLevel',ceilingType:'ceilingType',partitionType:'partitionType',fenceType:'fenceType',doorwinType:'doorwinType'};
+  Object.keys(selMap).forEach(id=>{ const e=document.getElementById(id); if(e) e.onchange=()=>{ state.dims[id]=e.value; state.boqInited=false; recalcAll(); refreshActive(); }; });
+}
+
+// toggle a boolean dimension flag (e.g. kitchen) and regenerate BOQ
+function toggleDim(id){
+  state.dims[id]=!state.dims[id];
+  state.boqInited=false;
+  renderApp();
+}
+
+function onSlider(id,val){
+  const v=parseFloat(val);
+  const dimIds=['garageW','garageL','rearW','rearL','rearH','awningW','awningL','floorArea2','bathCount','ceilingArea','partitionArea','fenceLen','fenceH','doorwinCount','electricPoints','paintInArea','paintOutArea'];
+  if(dimIds.includes(id)) state.dims[id]=v;
+  else state.rates[id]=v;
+  // moving conting/overhead slider switches back to % mode
+  if(id==='conting') state.rates.contingMode='pct';
+  if(id==='overhead') state.rates.overheadMode='pct';
+  // update label
+  const lab=document.getElementById(id+'_v');
+  if(lab){
+    let unit=' ม.';
+    if(id==='penalty') unit='';
+    else if(['overhead','conting','retention','vat'].includes(id)) unit='%';
+    else if(['totalDays','quoteValid'].includes(id)) unit=' วัน';
+    else if(id==='warranty') unit=' ด.';
+    else if(id.includes('Area')||id==='floorArea2') unit=' ตร.ม.';
+    else if(id==='bathCount') unit=' ห้อง';
+    else if(id==='doorwinCount') unit=' ชุด';
+    else if(id==='electricPoints') unit=' จุด';
+    lab.textContent = (id==='penalty'?fmt(v):v)+unit;
+  }
+  // flooring area & kitchen affect BOQ quantities — regenerate is heavy, but qty in genBOQ is captured at gen time.
+  // For sliders we keep edits; user can press "คำนวณ BOQ ใหม่". But floorArea2 should reflect immediately if not edited.
+  recalcAll();
+  refreshActive();
+}
+
+function toggleWork(k){
+  state.works[k]=!state.works[k];
+  state.boqInited=false; // regenerate BOQ when work set changes
+  renderApp();
+}
+
+// ════════════════════════════════════════════════
+//  CALC ENGINE
+// ════════════════════════════════════════════════
+function workAreas(){
+  const d=state.dims;
+  return {
+    garage:   state.works.garage   ? d.garageW*d.garageL : 0,
+    rear:     state.works.rear     ? d.rearW*d.rearL : 0,
+    awning:   state.works.awning   ? d.awningW*d.awningL : 0,
+    flooring: state.works.flooring ? d.floorArea2 : 0,
+    bathroom: state.works.bathroom ? d.bathCount : 0,
+    ceiling:  state.works.ceiling  ? d.ceilingArea : 0,
+    partition:state.works.partition? d.partitionArea : 0,
+    fence:    state.works.fence    ? d.fenceLen : 0,
+    doorwin:  state.works.doorwin  ? d.doorwinCount : 0,
+    electric: state.works.electric ? d.electricPoints : 0,
+    paintIn:  state.works.paintIn  ? d.paintInArea : 0,
+    paintOut: state.works.paintOut ? d.paintOutArea : 0,
+  };
+}
+function totalFloorArea(){
+  const a=workAreas();
+  return a.garage + a.rear; // พื้นที่ก่อสร้างจริง (ไม่นับทาสี/กันสาด)
+}
+
+// Generate BOQ items grouped by work. Each row: {id,workKey,secId,no,desc,unit,qty,mat,labor,note}
+function genBOQ(){
+  const d=state.dims, a=workAreas();
+  const rows=[]; let secN=0;
+  const uid=()=>'r'+Math.random().toString(36).slice(2,8);
+  const sec=(workKey,label)=>{ secN++; const id='s'+secN; rows.push({id,isSec:true,workKey,label:`${secN}. ${WORKS[workKey].icon} ${label}`}); return id; };
+  const add=(workKey,sid,no,desc,unit,qty,mat,labor,note='')=>rows.push({id:uid(),workKey,secId:sid,no,desc,unit,qty:+(+qty).toFixed(2),mat,labor,note});
+
+  // ---- GARAGE (โรงจอดรถ) : พื้น คสล. + เสา + หลังคาโครงเหล็ก ----
+  if(state.works.garage){
+    const A=a.garage, peri=2*(d.garageW+d.garageL);
+    const roofSlope=1.08;                       // ลาดหลังคา ~8%
+    const roofA=+(A*roofSlope).toFixed(2);
+    const nPost=Math.max(4,Math.ceil(peri/3)+1);// เสาทุกๆ ~3ม. รอบนอก
+    const postH=2.4;                            // สูงเสา ~2.4ม.
+    const postM=+(nPost*postH).toFixed(1);      // ความยาวเหล็กเสารวม
+    const purlinM=+(roofA*1.3).toFixed(1);      // แป ~1.3 ม./ตร.ม.
+    const rafterM=+(d.garageW*Math.ceil(d.garageL/1.2+1)).toFixed(1); // จันทันทุก 1.2ม.
+    const meshKg=+(A*2.2).toFixed(0);           // ไวร์เมช 4มม.@20 ~2.2 กก./ตร.ม.
+    const concVol=+(A*0.12).toFixed(2);         // พื้นหนา 0.12ม.
+    const cement=Math.ceil(concVol*7), rock=+(concVol*0.9).toFixed(2), sand=+(concVol*0.55).toFixed(2);
+    const s=sec('garage','งานโรงจอดรถ');
+    add('garage',s,'1.1','ปรับ-บดอัดดิน + ทรายหยาบรองพื้น 5ซม.','ตร.ม.',A,60,80,`พื้นที่ ${d.garageW}×${d.garageL}=${fmtQ(A)} ตร.ม.`);
+    add('garage',s,'1.2','คอนกรีตพื้น fc´180 หนา 0.12ม.','ลบ.ม.',concVol,2050,520,`${fmtQ(A)}×0.12ม.=${concVol} ลบ.ม. (ปูน~${cement}ถุง หิน${rock} ทราย${sand})`);
+    add('garage',s,'1.3','ตะแกรงเหล็ก Wire Mesh 4มม.@0.20','กก.',meshKg,32,8,`${fmtQ(A)}ตร.ม.×2.2กก. = ${meshKg} กก.`);
+    add('garage',s,'1.4','เสาเหล็กกล่อง 4×4นิ้ว ชุบสี','ม.',postM,520,150,`${nPost} ต้น × สูง ${postH}ม. = ${postM} ม.`);
+    add('garage',s,'1.5','จันทัน-อะเส เหล็กกล่อง 4×2นิ้ว','ม.',rafterM,260,90,`จันทันทุก 1.2ม. รวม ${rafterM} ม.`);
+    add('garage',s,'1.6','แปเหล็กกล่อง 1.5×3นิ้ว','ม.',purlinM,150,60,`${fmtQ(roofA)}ตร.ม.×1.3 = ${purlinM} ม.`);
+    add('garage',s,'1.7','เมทัลชีท/โพลีคาร์บอเนต มุงหลังคา','ตร.ม.',roofA,320,120,`พื้นที่หลังคา ${fmtQ(A)}×1.08(ลาด) = ${fmtQ(roofA)} ตร.ม.`);
+    add('garage',s,'1.8','สกรูยึดเมทัลชีท + แหวนยาง','ตัว',Math.ceil(roofA*8),4,0,`${fmtQ(roofA)}ตร.ม.×8 ตัว = ${Math.ceil(roofA*8)} ตัว`);
+    add('garage',s,'1.9','รางน้ำฝน + ท่อลงน้ำ PVC','ม.',+(d.garageW+postH).toFixed(1),200,80,`กว้าง ${d.garageW}ม. + ท่อลง ~${postH}ม.`);
+    add('garage',s,'1.10','สีกันสนิม + สีจริงโครงเหล็ก','ตร.ม.',+((postM+rafterM+purlinM)*0.4).toFixed(1),45,35,`ผิวเหล็ก ~0.4 ตร.ม./ม.`);
+  }
+
+  // ---- REAR EXTENSION (ต่อเติมด้านหลัง) ----
+  if(state.works.rear){
+    const A=a.rear, peri=2*(d.rearW+d.rearL), wallA=+(peri*d.rearH).toFixed(2);
+    // ฐานราก/เสา: ตารางเสา ~2.5ม. ทั้งสองทิศ
+    const colX=Math.max(2,Math.ceil(d.rearW/2.5)+1), colY=Math.max(2,Math.ceil(d.rearL/2.5)+1);
+    const numFoot=colX*colY;
+    const pileLen=6;                                   // เข็มยาว ~6ม.
+    const pilePerFoot=numFoot;
+    // คอนกรีตโครงสร้าง: ฐานราก + เสา + คาน + พื้น
+    const footVol=+(numFoot*0.6*0.6*0.30).toFixed(2);  // ฐาน 0.6×0.6×0.3
+    const colVol=+(numFoot*0.20*0.20*(d.rearH+0.5)).toFixed(2); // เสา 0.20×0.20
+    const beamVol=+(peri*0.20*0.30).toFixed(2);        // คาน 0.20×0.30 รอบ
+    const slabVol=+(A*0.10).toFixed(2);                // พื้นหนา 0.10
+    const structVol=+(footVol+colVol+beamVol+slabVol).toFixed(2);
+    const cement=Math.ceil(structVol*7), rock=+(structVol*0.9).toFixed(2), sand=+(structVol*0.55).toFixed(2);
+    const rebarKg=Math.ceil(structVol*110);            // เหล็ก ~110 กก./ลบ.ม.
+    const formA=+((numFoot*1.5)+(peri*d.rearH*0.3)+(A*0.15)).toFixed(1); // ไม้แบบ
+    const blockPcs=Math.ceil(wallA*8.5);               // อิฐมวลเบา 8.5 ก้อน/ตร.ม.
+    const renderA=+(wallA*2).toFixed(1);               // ฉาบ 2 หน้า
+    const roofA=+(A*1.15).toFixed(2);
+    const s=sec('rear','งานต่อเติมด้านหลัง');
+    add('rear',s,'2.1','เสาเข็ม I-22/เข็มสั้น ยาว 6ม.','ต้น',numFoot,1200,400,`ตารางเสา ${colX}×${colY} = ${numFoot} ต้น`);
+    add('rear',s,'2.2','คอนกรีตโครงสร้าง fc´210 (ฐาน+เสา+คาน+พื้น)','ลบ.ม.',structVol,2150,750,`ฐาน${footVol}+เสา${colVol}+คาน${beamVol}+พื้น${slabVol}=${structVol} ลบ.ม.`);
+    add('rear',s,'2.3','ปูนซีเมนต์ (กรณีผสมเอง)','ถุง',cement,175,0,`${structVol}ลบ.ม.×7 = ${cement} ถุง (ใช้แทนข้อ 2.2 ถ้าผสมเอง)`);
+    add('rear',s,'2.4','เหล็กเสริม (DB+RB) ~110กก./ลบ.ม.','กก.',rebarKg,25,8,`${structVol}ลบ.ม.×110 = ${rebarKg} กก.`);
+    add('rear',s,'2.5','ไม้แบบหล่อคอนกรีต','ตร.ม.',formA,120,90,`ฐาน+เสา+คาน+ขอบพื้น = ${formA} ตร.ม.`);
+    add('rear',s,'2.6','อิฐมวลเบา หนา 7.5ซม.','ก้อน',blockPcs,32,0,`ผนัง ${peri.toFixed(1)}×${d.rearH}=${fmtQ(wallA)}ตร.ม.×8.5 = ${blockPcs} ก้อน`);
+    add('rear',s,'2.7','ค่าแรงก่อ+ปูนก่อ+ฉาบ 2 หน้า','ตร.ม.',renderA,95,150,`ฉาบ 2 หน้า ${fmtQ(wallA)}×2 = ${renderA} ตร.ม.`);
+    add('rear',s,'2.8','โครงหลังคาเหล็ก + มุงเมทัลชีท','ตร.ม.',roofA,560,220,`${fmtQ(A)}×1.15(ลาด) = ${fmtQ(roofA)} ตร.ม.`);
+    add('rear',s,'2.9','ฝ้าเพดานยิปซัม + โครงคร่าว','ตร.ม.',A,180,120,`เท่าพื้นที่พื้น ${fmtQ(A)} ตร.ม.`);
+    add('rear',s,'2.10','ประตู-หน้าต่างอะลูมิเนียม','ชุด',Math.max(2,Math.ceil(peri/8)),4500,800,`รอบ ${peri.toFixed(1)}ม. ~1 ชุด/8ม.`);
+    add('rear',s,'2.11','งานไฟฟ้า (จุด)','จุด',Math.max(4,Math.ceil(A/4)),350,250,`${fmtQ(A)}ตร.ม. ~1 จุด/4ตร.ม.`);
+    add('rear',s,'2.12','งานประปา/สุขาภิบาล','เหมา',1,2500,2000,'ถ้ามีจุดใช้น้ำ');
+    // ห้องครัวในส่วนต่อเติม (option)
+    if(d.rearKitchen){
+      const kt=d.rearKitchenType;
+      const counterM = +Math.max(2, Math.min(d.rearW, d.rearL)).toFixed(1);
+      const bsA=+(counterM*0.6).toFixed(1); // backsplash สูง 0.6ม.
+      if(kt==='basic'){
+        add('rear',s,'2.13','เคาน์เตอร์ครัวปูน + ปูกระเบื้อง','ม.',counterM,2200,1200,`ยาวตามด้านสั้นห้อง = ${counterM} ม.`);
+        add('rear',s,'2.14','ซิงค์สเตนเลส 1 หลุม + ก๊อก','ชุด',1,1800,600,'');
+        add('rear',s,'2.15','กระเบื้องกันเปื้อนผนัง (Backsplash)','ตร.ม.',bsA,450,300,`${counterM}ม.×สูง 0.6ม. = ${bsA} ตร.ม.`);
+      } else if(kt==='premium'){
+        add('rear',s,'2.13','ตู้ครัวบิวท์อินบน-ล่าง','ม.',counterM,9500,2500,`${counterM} ม.`);
+        add('rear',s,'2.14','ท็อปหินแกรนิต/ควอตซ์','ม.',counterM,4500,1200,'');
+        add('rear',s,'2.15','ซิงค์ 2 หลุม + ก๊อกคอสูง','ชุด',1,4500,800,'');
+        add('rear',s,'2.16','เครื่องดูดควัน + เตาแก๊สฝัง','ชุด',1,9000,1200,'');
+        add('rear',s,'2.17','กระเบื้อง/กระจกกันเปื้อนผนัง','ตร.ม.',+(counterM*0.8).toFixed(1),750,400,`${counterM}ม.×สูง 0.8ม.`);
+        add('rear',s,'2.18','ไฟใต้ตู้ + ปลั๊กกันน้ำ','ชุด',1,2500,900,'');
+      } else {
+        add('rear',s,'2.13','ตู้ครัวบิวท์อินบน-ล่าง','ม.',counterM,5500,1800,`${counterM} ม.`);
+        add('rear',s,'2.14','ท็อปแกรนิต/ลามิเนต','ม.',counterM,2800,900,'');
+        add('rear',s,'2.15','ซิงค์ 1-2 หลุม + ก๊อก','ชุด',1,2800,700,'');
+        add('rear',s,'2.16','กระเบื้องกันเปื้อนผนัง','ตร.ม.',+(counterM*0.7).toFixed(1),550,350,`${counterM}ม.×สูง 0.7ม.`);
+        add('rear',s,'2.17','ปลั๊กไฟครัว + ท่อน้ำดี-ทิ้ง','ชุด',1,2200,1500,'');
+      }
+    }
+  }
+
+  // ---- FLOORING (ปูพื้นใหม่) ----
+  if(state.works.flooring){
+    const A=a.flooring, ft=d.floorType;
+    const periEst=+(Math.sqrt(A)*4).toFixed(1);   // ประมาณรอบห้อง (สมมติสี่เหลี่ยมจัตุรัส)
+    const waste=ft==='tile'||ft==='ceramic'?1.07:1.05; // กระเบื้องเผื่อตัด 7% / แผ่นปู 5%
+    const matA=+(A*waste).toFixed(2);
+    const s=sec('flooring','งานปูพื้นใหม่');
+    add('flooring',s,'F.1','รื้อพื้นเดิม + ขนเศษทิ้ง','ตร.ม.',A,0,120,`พื้นที่ ${fmtQ(A)} ตร.ม. (ถ้ามีพื้นเดิม)`);
+    add('flooring',s,'F.2','ปรับระดับพื้น + เทปรับผิว (Self-leveling)','ตร.ม.',A,85,90,`${fmtQ(A)} ตร.ม.`);
+    if(ft==='tile'){
+      add('flooring',s,'F.3','กระเบื้องแกรนิตโต้ 60×60 Grade A','ตร.ม.',matA,260,0,`${fmtQ(A)}×1.07(เผื่อตัด 7%) = ${fmtQ(matA)} ตร.ม.`);
+      add('flooring',s,'F.4','กาวซีเมนต์ + ปูนยาแนว','ตร.ม.',A,55,0,`${fmtQ(A)} ตร.ม.`);
+      add('flooring',s,'F.5','ค่าแรงปูกระเบื้อง + ยาแนว','ตร.ม.',A,0,250,`${fmtQ(A)} ตร.ม.`);
+      add('flooring',s,'F.6','บัวเชิงผนังกระเบื้อง','ม.',periEst,45,35,`รอบห้อง ~√${fmtQ(A)}×4 = ${periEst} ม.`);
+    } else if(ft==='ceramic'){
+      add('flooring',s,'F.3','กระเบื้องเซรามิก 30×30/40×40','ตร.ม.',matA,150,0,`${fmtQ(A)}×1.07(เผื่อตัด) = ${fmtQ(matA)} ตร.ม.`);
+      add('flooring',s,'F.4','กาวซีเมนต์ + ยาแนว','ตร.ม.',A,50,0,`${fmtQ(A)} ตร.ม.`);
+      add('flooring',s,'F.5','ค่าแรงปู + ยาแนว','ตร.ม.',A,0,220,`${fmtQ(A)} ตร.ม.`);
+      add('flooring',s,'F.6','บัวเชิงผนัง','ม.',periEst,40,30,`รอบห้อง ~${periEst} ม.`);
+    } else if(ft==='spc'){
+      add('flooring',s,'F.3','พื้น SPC คลิกล็อก หนา 4-5มม.','ตร.ม.',matA,320,0,`${fmtQ(A)}×1.05(เผื่อ 5%) = ${fmtQ(matA)} ตร.ม.`);
+      add('flooring',s,'F.4','โฟมรองพื้น (Underlay)','ตร.ม.',A,35,0,`${fmtQ(A)} ตร.ม.`);
+      add('flooring',s,'F.5','ค่าแรงปู SPC คลิกล็อก','ตร.ม.',A,0,150,`${fmtQ(A)} ตร.ม. (ปูเร็ว)`);
+      add('flooring',s,'F.6','บัวเชิงผนัง PVC/SPC','ม.',periEst,55,30,`รอบห้อง ~${periEst} ม.`);
+    } else {
+      add('flooring',s,'F.3','พื้นลามิเนต หนา 8-12มม. AC4','ตร.ม.',matA,290,0,`${fmtQ(A)}×1.05 = ${fmtQ(matA)} ตร.ม.`);
+      add('flooring',s,'F.4','โฟมรองพื้นกันชื้น','ตร.ม.',A,40,0,`${fmtQ(A)} ตร.ม.`);
+      add('flooring',s,'F.5','ค่าแรงปูลามิเนต','ตร.ม.',A,0,140,`${fmtQ(A)} ตร.ม.`);
+      add('flooring',s,'F.6','บัวเชิงผนัง + เส้นจบขอบ','ม.',periEst,60,30,`รอบห้อง ~${periEst} ม.`);
+    }
+  }
+
+  // ---- AWNING (กันสาด) ----
+  if(state.works.awning){
+    const A=a.awning;
+    const sheetA=+(A*1.1).toFixed(2);                    // เผื่อทับซ้อน 10%
+    const beamM=+(d.awningW*Math.max(2,Math.ceil(d.awningW/1.5)+1)).toFixed(1); // คานขวางทุก 1.5ม.
+    const bracketN=Math.max(2,Math.ceil(d.awningW/1.2)); // ค้ำยันทุก 1.2ม.
+    const frameM=+(beamM+bracketN*d.awningL*1.2).toFixed(1); // โครง+ค้ำ
+    const steelArea=+(frameM*0.35).toFixed(1);           // ผิวเหล็กสำหรับทาสี
+    const s=sec('awning','งานกันสาด');
+    add('awning',s,'3.1','เหล็กกล่องโครงกันสาด 2×4นิ้ว','ม.',frameM,150,0,`คาน ${beamM}ม. + ค้ำยัน ${bracketN} จุด`);
+    add('awning',s,'3.2','ค่าแรงเชื่อม-ประกอบโครง + ยึดผนัง','ตร.ม.',A,0,280,`พื้นที่ ${d.awningW}×${d.awningL} = ${fmtQ(A)} ตร.ม.`);
+    add('awning',s,'3.3','แผ่นเมทัลชีท/โพลีคาร์บอเนตใส','ตร.ม.',sheetA,350,120,`${fmtQ(A)}×1.1(เผื่อซ้อน) = ${fmtQ(sheetA)} ตร.ม.`);
+    add('awning',s,'3.4','พุกเคมี/สกรูยึดผนัง + ซิลิโคนกันรั่ว','จุด',bracketN,180,90,`ยึดทุก 1.2ม. = ${bracketN} จุด`);
+    add('awning',s,'3.5','สีกันสนิม + สีจริง','ตร.ม.',steelArea,45,35,`ผิวเหล็ก ~0.35 ตร.ม./ม. = ${steelArea} ตร.ม.`);
+    add('awning',s,'3.6','รางน้ำฝน (ถ้าต้องการ)','ม.',d.awningW,200,80,`กว้าง ${d.awningW} ม.`);
+  }
+
+  // ---- BATHROOM (ห้องน้ำ) ----
+  if(state.works.bathroom){
+    const N=d.bathCount, lv=d.bathLevel;
+    const s=sec('bathroom','งานห้องน้ำ');
+    const perRoom=4.5; // พื้น ~1.5×2 + ผนังบางส่วน เฉลี่ย ~4.5 ตร.ม./ห้อง (พื้น)
+    add('bathroom',s,'B.1','รื้อสุขภัณฑ์/กระเบื้องเดิม + ขนทิ้ง','ห้อง',N,0,2500,`${N} ห้อง`);
+    if(lv==='basic'){
+      add('bathroom',s,'B.2','เปลี่ยนชักโครก + อ่างล้างหน้า','ชุด',N,4500,1200,`${N} ห้อง`);
+      add('bathroom',s,'B.3','ก๊อก/ฝักบัว/สายฉีดชำระ','ชุด',N,1800,600,`${N} ห้อง`);
+      add('bathroom',s,'B.4','ซ่อม/ปรับท่อน้ำดี-ท่อน้ำทิ้ง','ห้อง',N,1500,1500,`${N} ห้อง`);
+      add('bathroom',s,'B.5','ยาแนว/ซิลิโคนกันรั่วใหม่','ห้อง',N,400,600,`${N} ห้อง`);
+    } else if(lv==='premium'){
+      const tileA=+(N*perRoom*1.8).toFixed(1); // พื้น+ผนัง ~1.8 เท่าพื้น
+      add('bathroom',s,'B.2','ระบบกันซึม 2 ชั้น (พื้น+ผนังเปียก)','ตร.ม.',tileA,180,120,`${N}ห้อง×4.5×1.8 = ${tileA} ตร.ม.`);
+      add('bathroom',s,'B.3','กระเบื้องผนัง+พื้น เกรดพรีเมียม','ตร.ม.',tileA,420,280,`${tileA} ตร.ม. (รวมเผื่อตัด)`);
+      add('bathroom',s,'B.4','สุขภัณฑ์ครบชุด (ชักโครก+อ่าง+ตู้)','ชุด',N,18000,2500,`${N} ห้อง`);
+      add('bathroom',s,'B.5','ฝักบัวเรนชาวเวอร์ + ก๊อกผสม','ชุด',N,6500,800,`${N} ห้อง`);
+      add('bathroom',s,'B.6','ฉากกั้นอาบน้ำกระจกเทมเปอร์','ชุด',N,8500,1500,`${N} ห้อง`);
+      add('bathroom',s,'B.7','เครื่องทำน้ำอุ่น + เดินไฟ','ชุด',N,4500,1200,`${N} ห้อง`);
+      add('bathroom',s,'B.8','พัดลมระบายอากาศ + ฝ้ากันชื้น','ชุด',N,2500,800,`${N} ห้อง`);
+    } else {
+      const tileA=+(N*perRoom*1.5).toFixed(1);
+      add('bathroom',s,'B.2','ระบบกันซึมพื้น+ผนังส่วนเปียก','ตร.ม.',tileA,150,100,`${N}ห้อง×4.5×1.5 = ${tileA} ตร.ม.`);
+      add('bathroom',s,'B.3','กระเบื้องผนัง+พื้น เกรดมาตรฐาน','ตร.ม.',tileA,260,250,`${tileA} ตร.ม.`);
+      add('bathroom',s,'B.4','ชักโครก + อ่างล้างหน้า + ตู้','ชุด',N,8500,1500,`${N} ห้อง`);
+      add('bathroom',s,'B.5','ฝักบัว + ก๊อกผสม + สายฉีด','ชุด',N,3500,800,`${N} ห้อง`);
+      add('bathroom',s,'B.6','เครื่องทำน้ำอุ่น + เดินไฟ','ชุด',N,3500,1000,`${N} ห้อง`);
+      add('bathroom',s,'B.7','พัดลมระบายอากาศ','ชุด',N,1500,500,`${N} ห้อง`);
+    }
+  }
+
+  // ---- CEILING (ฝ้าเพดาน) ----
+  if(state.works.ceiling){
+    const A=a.ceiling, ct=d.ceilingType;
+    const s=sec('ceiling','งานฝ้าเพดาน');
+    add('ceiling',s,'C.1','รื้อฝ้าเดิม (ถ้ามี) + ขนทิ้ง','ตร.ม.',A,0,60,`พื้นที่ฝ้า ${fmtQ(A)} ตร.ม.`);
+    if(ct==='tbar'){
+      const panels=Math.ceil(A/0.36); // แผ่น 60×60 = 0.36 ตร.ม.
+      add('ceiling',s,'C.2','โครงเคร่า T-Bar ชุบสังกะสี','ตร.ม.',A,120,0,`${fmtQ(A)} ตร.ม.`);
+      add('ceiling',s,'C.3','แผ่นฝ้า T-Bar 60×60 (ยิปซัม/PVC)','แผ่น',panels,65,0,`${fmtQ(A)}÷0.36 = ${panels} แผ่น`);
+      add('ceiling',s,'C.4','ค่าแรงติดตั้งฝ้า T-Bar','ตร.ม.',A,0,120,`${fmtQ(A)} ตร.ม. (ปูเร็ว)`);
+    } else if(ct==='smartboard'){
+      add('ceiling',s,'C.2','โครงคร่าวเหล็กชุบสังกะสี @0.60','ตร.ม.',A,140,0,`${fmtQ(A)} ตร.ม.`);
+      add('ceiling',s,'C.3','แผ่นสมาร์ทบอร์ดกันชื้น 4มม.','ตร.ม.',+(A*1.05).toFixed(1),180,0,`${fmtQ(A)}×1.05(เผื่อตัด) = ${fmtQ(A*1.05)} ตร.ม.`);
+      add('ceiling',s,'C.4','ค่าแรงติดตั้ง + ฉาบรอยต่อ','ตร.ม.',A,0,180,`${fmtQ(A)} ตร.ม.`);
+      add('ceiling',s,'C.5','ทาสีฝ้า 2 รอบ','ตร.ม.',A,40,50,`${fmtQ(A)} ตร.ม.`);
+    } else {
+      add('ceiling',s,'C.2','โครงคร่าวเหล็กชุบสังกะสี @0.60','ตร.ม.',A,140,0,`${fmtQ(A)} ตร.ม.`);
+      add('ceiling',s,'C.3','แผ่นยิปซัมบอร์ด 9มม.','ตร.ม.',+(A*1.05).toFixed(1),90,0,`${fmtQ(A)}×1.05 = ${fmtQ(A*1.05)} ตร.ม.`);
+      add('ceiling',s,'C.4','ค่าแรงติดตั้ง + ฉาบเรียบรอยต่อ','ตร.ม.',A,0,170,`${fmtQ(A)} ตร.ม.`);
+      add('ceiling',s,'C.5','ทาสีฝ้า 2 รอบ','ตร.ม.',A,40,50,`${fmtQ(A)} ตร.ม.`);
+    }
+  }
+
+  // ---- PARTITION (ผนังเบา/กั้นห้อง) ----
+  if(state.works.partition){
+    const A=a.partition, pt=d.partitionType;
+    const A2=+(A*2).toFixed(1);
+    const s=sec('partition','งานผนังเบา/กั้นห้อง');
+    if(pt==='block'){
+      add('partition',s,'P.1','อิฐมวลเบา หนา 7.5ซม.','ก้อน',Math.ceil(A*8.5),32,0,`${fmtQ(A)}ตร.ม.×8.5 = ${Math.ceil(A*8.5)} ก้อน`);
+      add('partition',s,'P.2','ค่าแรงก่อ + ปูนก่อ + ฉาบ 2 หน้า','ตร.ม.',A,120,320,`${fmtQ(A)} ตร.ม.`);
+      add('partition',s,'P.3','สีรองพื้น + สีจริง 2 หน้า','ตร.ม.',A2,55,60,`${fmtQ(A)}×2 = ${A2} ตร.ม.`);
+    } else if(pt==='smartboard'){
+      add('partition',s,'P.1','โครงเคร่าเหล็ก C-Stud @0.40','ตร.ม.',A,150,0,`${fmtQ(A)} ตร.ม.`);
+      add('partition',s,'P.2','แผ่นสมาร์ทบอร์ด 2 หน้า + ฉนวน','ตร.ม.',A,320,0,`${fmtQ(A)} ตร.ม. (2 หน้า)`);
+      add('partition',s,'P.3','ค่าแรงติดตั้ง + ฉาบรอยต่อ','ตร.ม.',A,0,250,`${fmtQ(A)} ตร.ม.`);
+      add('partition',s,'P.4','ทาสี 2 หน้า','ตร.ม.',A2,50,55,`${fmtQ(A)}×2 = ${A2} ตร.ม.`);
+    } else {
+      add('partition',s,'P.1','โครงเคร่าเหล็ก C-Stud @0.40','ตร.ม.',A,150,0,`${fmtQ(A)} ตร.ม.`);
+      add('partition',s,'P.2','แผ่นยิปซัม 2 หน้า + ฉนวนใยแก้ว','ตร.ม.',A,240,0,`${fmtQ(A)} ตร.ม. (2 หน้า)`);
+      add('partition',s,'P.3','ค่าแรงติดตั้ง + ฉาบเรียบ','ตร.ม.',A,0,230,`${fmtQ(A)} ตร.ม.`);
+      add('partition',s,'P.4','ทาสี 2 หน้า','ตร.ม.',A2,50,55,`${fmtQ(A)}×2 = ${A2} ตร.ม.`);
+    }
+  }
+
+  // ---- FENCE (รั้ว-กำแพง) ----
+  if(state.works.fence){
+    const Ln=a.fence, H=d.fenceH, ft=d.fenceType, faceA=+(Ln*H).toFixed(1);
+    const nPost=Math.ceil(Ln/2.5)+1;            // เสาทุก 2.5ม.
+    const blockPcs=Math.ceil(faceA*8.5);
+    const s=sec('fence','งานรั้ว-กำแพง');
+    add('fence',s,'W.1','ปรับพื้นที่ + ขุดร่องฐานราก','ม.',Ln,80,150,`ยาว ${Ln} ม.`);
+    add('fence',s,'W.2','ฐานราก + คานคอดิน คสล. + เหล็ก','ม.',Ln,650,450,`ยาว ${Ln} ม. (รวมเสาเข็มสั้นถ้าจำเป็น)`);
+    if(ft==='precast'){
+      add('fence',s,'W.3','แผ่นรั้วสำเร็จรูป Precast','ตร.ม.',faceA,420,0,`${Ln}ม.×สูง ${H}ม. = ${faceA} ตร.ม.`);
+      add('fence',s,'W.4','เสารั้ว Precast + ติดตั้ง','ต้น',nPost,550,250,`เสาทุก 2.5ม. = ${nPost} ต้น`);
+    } else if(ft==='metal'){
+      add('fence',s,'W.3','เสาเหล็ก + โครงรั้วเหล็ก/สแตนเลส','ตร.ม.',faceA,850,350,`${Ln}×${H} = ${faceA} ตร.ม.`);
+      add('fence',s,'W.4','สีกันสนิม + สีจริง 2 ด้าน','ตร.ม.',+(faceA*2).toFixed(1),55,45,`${faceA}×2 หน้า = ${(faceA*2).toFixed(1)} ตร.ม.`);
+    } else {
+      add('fence',s,'W.3','อิฐบล็อก/มวลเบา + เสาเอ็น-คานทับหลัง','ก้อน',blockPcs,12,10,`${faceA}ตร.ม.×8.5 = ${blockPcs} ก้อน`);
+      add('fence',s,'W.4','ค่าแรงก่อ + ปูนก่อ','ตร.ม.',faceA,55,180,`${faceA} ตร.ม.`);
+      add('fence',s,'W.5','ฉาบปูน 2 หน้า','ตร.ม.',+(faceA*2).toFixed(1),90,120,`${faceA}×2 = ${(faceA*2).toFixed(1)} ตร.ม.`);
+      add('fence',s,'W.6','สีรองพื้น + สีจริง 2 หน้า','ตร.ม.',+(faceA*2).toFixed(1),45,40,`${(faceA*2).toFixed(1)} ตร.ม.`);
+    }
+    add('fence',s,'W.9','ประตูรั้ว (บานเลื่อน/บานสวิง)','ชุด',1,8500,2500,'ถ้าต้องการ');
+  }
+
+  // ---- DOOR/WINDOW (ประตู-หน้าต่าง) ----
+  if(state.works.doorwin){
+    const N=d.doorwinCount, dt=d.doorwinType;
+    const s=sec('doorwin','งานประตู-หน้าต่าง');
+    add('doorwin',s,'D.1','รื้อประตู/หน้าต่างเดิม','ชุด',N,0,350,`${N} ชุด`);
+    if(dt==='upvc'){
+      add('doorwin',s,'D.2','ประตู/หน้าต่าง UPVC + กระจก','ชุด',N,5500,0,`${N} ชุด · กันเสียง กันน้ำ`);
+    } else if(dt==='wood'){
+      add('doorwin',s,'D.2','ประตู/หน้าต่างไม้/ไม้เอ็นจิเนียร์','ชุด',N,6500,0,`${N} ชุด`);
+    } else {
+      add('doorwin',s,'D.2','ประตู/หน้าต่างอะลูมิเนียม + กระจก','ชุด',N,4200,0,`${N} ชุด`);
+    }
+    add('doorwin',s,'D.3','วงกบ + อุปกรณ์ (บานพับ/มือจับ/กลอน)','ชุด',N,1200,0,`${N} ชุด`);
+    add('doorwin',s,'D.4','ค่าแรงติดตั้ง + ปรับวงกบ','ชุด',N,0,1200,`${N} ชุด`);
+    add('doorwin',s,'D.5','ซิลิโคน/โฟมยาแนวรอบวงกบ','ชุด',N,150,150,`${N} ชุด`);
+  }
+
+  // ---- ELECTRIC (ระบบไฟฟ้า) ----
+  if(state.works.electric){
+    const P=d.electricPoints, nLight=Math.ceil(P*0.5);
+    const s=sec('electric','งานระบบไฟฟ้า');
+    add('electric',s,'E.1','เดินสายไฟ THW/IEC01 + ท่อร้อยสาย','จุด',P,180,150,`${P} จุด`);
+    add('electric',s,'E.2','เต้ารับ/สวิตช์/จุดไฟ + ฝา','จุด',P,150,120,`${P} จุด`);
+    add('electric',s,'E.3','ดวงโคม LED','จุด',nLight,320,80,`~50% ของจุด = ${nLight} ดวง`);
+    if(d.electricPanel){
+      add('electric',s,'E.4','ตู้ Consumer Unit ใหม่ + เบรกเกอร์','ชุด',1,3500,1500,'เปลี่ยนตู้ไฟ');
+      add('electric',s,'E.5','สายเมน + กราวด์ + หลักดิน','เหมา',1,2500,1500,'');
+    }
+    add('electric',s,'E.9','ทดสอบระบบ + ตรวจความปลอดภัย','เหมา',1,0,1000,'');
+  }
+
+  // ---- PAINT INTERIOR ----
+  if(state.works.paintIn){
+    const A=a.paintIn, primerGal=Math.ceil(A/35), paintGal=Math.ceil(A*2/30);
+    const s=sec('paintIn','งานทาสีภายใน');
+    add('paintIn',s,'4.1','โป๊ว/ขัดเตรียมผิว + อุดรอยแตก','ตร.ม.',A,25,35,`พื้นที่ผนัง ${fmtQ(A)} ตร.ม.`);
+    add('paintIn',s,'4.2','สีรองพื้นปูน (1 รอบ)','ตร.ม.',A,28,22,`${fmtQ(A)} ตร.ม. (~${primerGal} แกลลอน)`);
+    add('paintIn',s,'4.3','สีจริงภายใน เช็ดล้างได้ (2 รอบ)','ตร.ม.',A,55,40,`${fmtQ(A)}×2 รอบ (~${paintGal} แกลลอน)`);
+    add('paintIn',s,'4.4','ผ้าใบ/พลาสติกคลุม + เก็บงาน','เหมา',1,800,1200,'');
+  }
+
+  // ---- PAINT EXTERIOR ----
+  if(state.works.paintOut){
+    const A=a.paintOut, primerGal=Math.ceil(A/35), paintGal=Math.ceil(A*2/30);
+    const s=sec('paintOut','งานทาสีภายนอก');
+    add('paintOut',s,'5.1','ล้างทำความสะอาดผนัง + ขัดสีเก่า','ตร.ม.',A,20,40,`พื้นที่ผนัง ${fmtQ(A)} ตร.ม.`);
+    add('paintOut',s,'5.2','อุดรอยแตก + โป๊วปรับผิว','ตร.ม.',A,30,40,`${fmtQ(A)} ตร.ม.`);
+    add('paintOut',s,'5.3','สีรองพื้นปูนกันด่าง (1 รอบ)','ตร.ม.',A,32,25,`${fmtQ(A)} ตร.ม. (~${primerGal} แกลลอน)`);
+    add('paintOut',s,'5.4','สีจริงภายนอก กันเชื้อรา (2 รอบ)','ตร.ม.',A,70,45,`${fmtQ(A)}×2 รอบ (~${paintGal} แกลลอน)`);
+    add('paintOut',s,'5.5','ค่านั่งร้าน/อุปกรณ์สูง','เหมา',1,2500,1500,'กรณีอาคารสูง');
+  }
+
+  return rows;
+}
+
+// totals
+function boqTotals(){
+  let mat=0,lbr=0;
+  if(state.boq) state.boq.forEach(r=>{ if(!r.isSec){ mat+=r.qty*(+r.mat); lbr+=r.qty*(+r.labor); }});
+  const sub=mat+lbr;
+  const r=state.rates;
+  // contingency: pct of sub, or fixed baht
+  const conting = r.contingMode==='fixed' ? r.contingFixed : sub*r.conting/100;
+  const contingPct = r.contingMode==='fixed' ? (sub>0?conting/sub*100:0) : r.conting;
+  // overhead: pct of (sub+conting), or fixed baht
+  const ohBase = sub+conting;
+  const oh = r.overheadMode==='fixed' ? r.overheadFixed : ohBase*r.overhead/100;
+  const ohPct = r.overheadMode==='fixed' ? (ohBase>0?oh/ohBase*100:0) : r.overhead;
+  const beforeVat=sub+conting+oh;
+  const vat=beforeVat*(r.vat/100);
+  const grand=beforeVat+vat;
+  const fa=totalFloorArea();
+  return {mat,lbr,sub,conting,oh,beforeVat,vat,grand,contingPct,ohPct,
+    contMode:r.contingMode,ohMode:r.overheadMode,
+    floorArea:fa,perSqm:fa>0?grand/fa:0,matPct:sub>0?Math.round(mat/sub*100):0};
+}
+// per-work subtotal
+function workTotals(){
+  const out={};
+  activeWorks().forEach(w=>out[w]={mat:0,lbr:0,tot:0});
+  if(state.boq) state.boq.forEach(r=>{ if(!r.isSec&&out[r.workKey]){ const m=r.qty*(+r.mat),l=r.qty*(+r.labor); out[r.workKey].mat+=m; out[r.workKey].lbr+=l; out[r.workKey].tot+=m+l; }});
+  return out;
+}
+
+// ════════════════════════════════════════════════
+//  RECALC / REFRESH
+// ════════════════════════════════════════════════
+function recalcAll(){
+  if(!state.boqInited){ state.boq=genBOQ(); state.boqInited=true; initPayments(); }
+  const a=workAreas();
+  const fa=totalFloorArea();
+  const badge=document.getElementById('areaBadge');
+  if(badge){
+    const parts=activeWorks().map(w=>`${WORKS[w].name} ${fmtQ(a[w])}`);
+    badge.textContent = parts.length?`${parts.join(' · ')} ตร.ม.`:'ยังไม่เลือกงาน';
+  }
+}
+function softRefresh(){ refreshActive(); }
+function refreshActive(){ renderTab(state.activeTab); }
+
+function showTab(k){
+  state.activeTab=k;
+  document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  const sh=document.getElementById('tab-'+k); if(sh) sh.classList.add('active');
+  const bt=document.getElementById('tabbtn-'+k); if(bt) bt.classList.add('active');
+  renderTab(k);
+}
+function renderTab(k){
+  if(k==='dashboard') renderDashboard();
+  else if(k==='drawing') renderDrawing();
+  else if(k==='boq') renderBOQ();
+  else if(k==='quote') renderQuote();
+  else if(k==='contract') renderContract();
+  else if(k==='invoice') renderInvoice();
+}
+function resetBOQ(){ if(confirm('คำนวณ BOQ ใหม่จากขนาดปัจจุบัน? การแก้ไขที่ทำไว้จะหาย')){ state.boqInited=false; recalcAll(); refreshActive(); ioStatus('✓ คำนวณใหม่แล้ว'); } }
+function ioStatus(m){ const e=document.getElementById('ioStatus'); if(e){ e.textContent=m; setTimeout(()=>e.textContent='',2500); } }
+
+// ════════════════════════════════════════════════
+//  TAB: DASHBOARD
+// ════════════════════════════════════════════════
+function renderDashboard(){
+  const t=boqTotals(), wt=workTotals(), a=workAreas();
+  const works=activeWorks();
+  if(!works.length){ document.getElementById('dashboard-content').innerHTML='<div class="empty-note">ยังไม่ได้เลือกงาน — เลือกงานในแถบควบคุมด้านบน</div>'; return; }
+
+  let workCards='';
+  works.forEach(w=>{
+    const pct=t.sub>0?Math.round(wt[w].tot/(t.sub)*100):0;
+    workCards+=`<div class="card" style="border-left-color:${WORKS[w].color}">
+      <div class="card-label">${WORKS[w].icon} ${WORKS[w].name} (${fmtQ(a[w])} ${WORKS[w].unit})</div>
+      <div class="card-val" style="color:${WORKS[w].color}">฿${fmt(wt[w].tot)}</div>
+      <div class="card-sub">วัสดุ ฿${fmt(wt[w].mat)} · แรง ฿${fmt(wt[w].lbr)} · ${pct}%</div></div>`;
+  });
+
+  // bar chart of works
+  let bars='';
+  const maxTot=Math.max(...works.map(w=>wt[w].tot),1);
+  works.forEach(w=>{
+    const pct=wt[w].tot/maxTot*100;
+    bars+=`<div style="display:grid;grid-template-columns:130px 1fr 90px;align-items:center;gap:8px;margin-bottom:6px">
+      <span style="font-size:.78rem">${WORKS[w].icon} ${WORKS[w].name}</span>
+      <div style="background:#eee;border-radius:4px;height:20px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${WORKS[w].color}"></div></div>
+      <span style="text-align:right;font-family:'Share Tech Mono',monospace;font-size:.76rem">฿${fmt(wt[w].tot)}</span></div>`;
+  });
+
+  document.getElementById('dashboard-content').innerHTML=`
+  <div class="rpt-wrap">
+    <div style="margin-bottom:8px"><button class="print-btn" onclick="window.print()">🖨️ พิมพ์ Dashboard</button></div>
+    <div class="rpt-title">${state.proj.name}</div>
+    <div class="rpt-sub">${HOUSE_TYPES[state.house].name} · เจ้าของ: ${state.proj.owner} · วันที่ ${formatThaiDate(state.proj.date)} · ${works.length} งาน</div>
+
+    <div class="cards">
+      <div class="card green"><div class="card-label">ราคารวมทั้งสิ้น (รวม VAT)</div><div class="card-val">฿${fmt(t.grand)}</div><div class="card-sub">เผื่อ ${t.contingPct.toFixed(t.contMode==='fixed'?1:0)}% + OH ${t.ohPct.toFixed(t.ohMode==='fixed'?1:0)}% + VAT ${state.rates.vat}%</div></div>
+      <div class="card gold"><div class="card-label">ค่าวัสดุ : ค่าแรง</div><div class="card-val">${t.matPct}:${100-t.matPct}</div><div class="card-sub">วัสดุ ฿${fmt(t.mat)} · แรง ฿${fmt(t.lbr)}</div></div>
+      <div class="card"><div class="card-label">พื้นที่ก่อสร้าง</div><div class="card-val">${fmtQ(t.floorArea)} ตร.ม.</div><div class="card-sub">${t.perSqm>0?'฿'+fmt(t.perSqm)+'/ตร.ม.':'(เฉพาะงานทาสี/กันสาด)'}</div></div>
+      <div class="card red"><div class="card-label">ระยะเวลา</div><div class="card-val">${state.rates.totalDays} วัน</div><div class="card-sub">รับประกัน ${state.rates.warranty} เดือน</div></div>
+    </div>
+
+    <h4 style="color:var(--blue);font-size:.9rem;margin:16px 0 8px">แยกราคาตามงาน</h4>
+    ${bars}
+
+    <h4 style="color:var(--blue);font-size:.9rem;margin:18px 0 8px">รายละเอียดแต่ละงาน</h4>
+    <div class="cards">${workCards}</div>
+
+    <div class="notes-panel" style="margin:16px 0 0"><h4>📌 สรุป</h4>
+    <ul>
+      <li>งานที่เลือก: <span class="dyn">${works.map(w=>WORKS[w].name).join(', ')}</span></li>
+      <li>ราคารวมทั้งสิ้น <span class="dyn">฿${fmt(t.grand)}</span> (${bahtText(Math.round(t.grand))})</li>
+      <li>ประมาณการเบื้องต้น — ควรสำรวจหน้างานจริงก่อนเสนอราคา</li>
+    </ul></div>
+  </div>`;
+}
+
+// ════════════════════════════════════════════════
+//  TAB: BOQ (editable, grouped by work)
+// ════════════════════════════════════════════════
+function boqEdit(id,field,val){
+  const r=state.boq.find(x=>x.id===id); if(!r)return;
+  if(['label','desc','unit','note','no'].includes(field)){ if(field==='no'){const n=val;r.no=n;}else r[field]=val; }
+  else { const n=parseFloat(String(val).replace(/,/g,'')); if(!isNaN(n)) r[field]=n; }
+  renderBOQ(); refreshDependents();
+}
+function boqDel(id){ state.boq=state.boq.filter(r=>r.id!==id); renderBOQ(); refreshDependents(); }
+function boqAddRow(sid,workKey){
+  const idx=state.boq.map(r=>r.id).lastIndexOf([...state.boq].reverse().find(r=>r.secId===sid)?.id);
+  const newRow={id:'r'+Math.random().toString(36).slice(2,8),workKey,secId:sid,no:'',desc:'รายการใหม่',unit:'ที่',qty:1,mat:0,labor:0,note:''};
+  let insertAt=state.boq.length;
+  for(let i=state.boq.length-1;i>=0;i--){ if(state.boq[i].secId===sid){ insertAt=i+1; break; } }
+  state.boq.splice(insertAt,0,newRow);
+  renderBOQ(); refreshDependents();
+}
+function refreshDependents(){
+  if(['dashboard','quote','contract','invoice'].includes(state.activeTab)) renderTab(state.activeTab);
+}
+
+// edit overhead / conting / vat rate inline from BOQ table
+function editRate(key,val){
+  const n=parseFloat(String(val).replace(/[^0-9.]/g,''));
+  if(isNaN(n)){ renderBOQ(); return; }
+  state.rates[key]=n;
+  // sync slider + its label if present
+  const sl=document.getElementById(key); if(sl) sl.value=n;
+  const lab=document.getElementById(key+'_v'); if(lab) lab.textContent=n+'%';
+  renderBOQ(); refreshDependents();
+}
+
+// switch conting/overhead between % and fixed-baht mode
+function setRateMode(key,mode){
+  state.rates[key+'Mode']=mode;
+  // seed the fixed value from current computed amount so it doesn't jump
+  if(mode==='fixed'){ const t=boqTotals(); state.rates[key+'Fixed']= key==='conting'?t.conting:t.oh; }
+  renderBOQ(); refreshDependents();
+}
+// edit the fixed-baht amount
+function editRateFixed(key,val){
+  const n=parseFloat(String(val).replace(/[^0-9.]/g,''));
+  if(isNaN(n)){ renderBOQ(); return; }
+  state.rates[key+'Fixed']=n;
+  renderBOQ(); refreshDependents();
+}
+
+function renderBOQ(){
+  if(!activeWorks().length){ document.getElementById('boq-content').innerHTML='<div class="empty-note">ยังไม่ได้เลือกงาน</div>'; return; }
+  const t=boqTotals();
+  const ed=(id,f,v,st='')=>`<span contenteditable="true" spellcheck="false" style="display:inline-block;outline:none;${st}" onblur="boqEdit('${id}','${f}',this.textContent.trim())" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${v}</span>`;
+  const numEd=(id,f,v)=>ed(id,f,v,'text-align:right;font-family:Share Tech Mono,monospace;min-width:46px');
+
+  let body='',curSec='',secMat=0,secLbr=0;
+  state.boq.forEach(r=>{
+    if(r.isSec){
+      if(curSec){ body+=subtotalRow(secMat,secLbr); }
+      curSec=r.id; secMat=0; secLbr=0;
+      const wc=WORKS[r.workKey];
+      body+=`<tr class="section-row"><td style="text-align:center;cursor:pointer;opacity:.5" title="ลบหมวด" onclick="if(confirm('ลบทั้งหมวด?')){state.boq=state.boq.filter(x=>x.id!=='${r.id}'&&x.secId!=='${r.id}');renderBOQ();refreshDependents()}">🗑</td>
+        <td colspan="8">${r.label} <span class="work-badge" style="background:${wc.color}">${wc.name}</span></td>
+        <td style="text-align:center"><button onclick="boqAddRow('${r.id}','${r.workKey}')" style="background:var(--green);color:#fff;border:none;border-radius:3px;padding:2px 7px;cursor:pointer;font-size:.7rem">＋</button></td></tr>`;
+    } else {
+      const m=r.qty*(+r.mat),l=r.qty*(+r.labor),tot=m+l; secMat+=m; secLbr+=l;
+      body+=`<tr>
+        <td style="text-align:center;cursor:pointer;opacity:.5" title="ลบรายการ" onclick="boqDel('${r.id}')">✕</td>
+        <td style="font-family:'Share Tech Mono',monospace;font-size:.7rem;color:var(--dim)">${numEd(r.id,'no',r.no)}</td>
+        <td>${ed(r.id,'desc',r.desc,'width:calc(100% - 20px)')}<span onclick="openPriceSearch('${r.id}')" title="ค้นราคาวัสดุ" style="cursor:pointer;margin-left:2px;font-size:.78rem;opacity:.55">🔍</span></td>
+        <td class="num">${numEd(r.id,'qty',fmtQ(r.qty))}</td>
+        <td>${ed(r.id,'unit',r.unit,'font-size:.78rem')}</td>
+        <td class="num" style="background:#eef5fb">${numEd(r.id,'mat',fmt(+r.mat))}</td>
+        <td class="num" style="background:#eef5fb;color:var(--mat)"><b>${m>0?fmt(m):'—'}</b></td>
+        <td class="num" style="background:#fdf8ec">${numEd(r.id,'labor',fmt(+r.labor))}</td>
+        <td class="num" style="background:#fdf8ec;color:var(--lbr)"><b>${l>0?fmt(l):'—'}</b></td>
+        <td class="num"><b>${fmt(tot)}</b></td>
+        <td>${ed(r.id,'note',r.note,'font-size:.7rem;color:var(--dim)')}</td></tr>`;
+    }
+  });
+  if(curSec) body+=subtotalRow(secMat,secLbr);
+
+  function subtotalRow(m,l){ return `<tr class="subtotal-row"><td colspan="5" style="text-align:right;font-size:.73rem">รวมหมวด</td><td class="num" style="color:var(--mat)">฿${fmt(m)}</td><td></td><td class="num" style="color:var(--lbr)">฿${fmt(l)}</td><td></td><td class="num">฿${fmt(m+l)}</td><td></td></tr>`; }
+
+  // editable adjustment rows (conting / overhead) with % ↔ ฿ toggle
+  const adjEd=(onblur,val)=>`<span contenteditable="true" spellcheck="false" style="display:inline-block;min-width:30px;text-align:right;outline:none;font-weight:700" onblur="${onblur}" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${val}</span>`;
+  const tog=(key,mode)=>{ const on=(m)=>`background:${mode===m?'#16314f':'#fff'};color:${mode===m?'#fff':'#16314f'}`;
+    return `<button onclick="setRateMode('${key}','pct')" style="border:1px solid #16314f;${on('pct')};font-size:.62rem;padding:1px 6px;border-radius:3px 0 0 3px;cursor:pointer">%</button><button onclick="setRateMode('${key}','fixed')" style="border:1px solid #16314f;border-left:none;${on('fixed')};font-size:.62rem;padding:1px 6px;border-radius:0 3px 3px 0;cursor:pointer">฿</button>`; };
+  const contLabel = t.contMode==='fixed'
+    ? `เผื่อความผิดพลาด ${tog('conting',t.contMode)} = ${adjEd("editRateFixed('conting',this.textContent)",fmt(t.conting))} บ. (${t.contingPct.toFixed(1)}%)`
+    : `เผื่อความผิดพลาด ${tog('conting',t.contMode)} (${adjEd("editRate('conting',this.textContent)",state.rates.conting)}%)`;
+  const ohLabel = t.ohMode==='fixed'
+    ? `Overhead/กำไร ${tog('overhead',t.ohMode)} = ${adjEd("editRateFixed('overhead',this.textContent)",fmt(t.oh))} บ. (${t.ohPct.toFixed(1)}%)`
+    : `Overhead/กำไร ${tog('overhead',t.ohMode)} (${adjEd("editRate('overhead',this.textContent)",state.rates.overhead)}%)`;
+
+  document.getElementById('boq-content').innerHTML=`
+  <div class="rpt-wrap">
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+      <button class="print-btn" onclick="window.print()">🖨️ พิมพ์ / PDF</button>
+      <span style="font-size:.72rem;color:var(--dim);font-family:'Share Tech Mono',monospace">✏️ คลิกแก้ไขได้ · 🔍 ค้นราคาวัสดุ · ＋ เพิ่มรายการ</span>
+    </div>
+    <div class="rpt-title">BOQ ถอดราคา — แยกตามงาน</div>
+    <div class="rpt-sub">${state.proj.name} · ${activeWorks().length} งาน · วันที่ ${formatThaiDate(state.proj.date)}</div>
+    <div style="overflow-x:auto;border:1px solid #e0dccf;border-radius:4px">
+    <table class="boq-table" style="min-width:760px">
+      <thead><tr>
+        <th style="width:28px"></th><th style="width:34px">ที่</th><th>รายการ</th>
+        <th style="width:50px" class="num">จำนวน</th><th style="width:44px">หน่วย</th>
+        <th style="width:72px" class="num">วัสดุ/น.</th><th style="width:78px" class="num">รวมวัสดุ</th>
+        <th style="width:68px" class="num">แรง/น.</th><th style="width:74px" class="num">รวมแรง</th>
+        <th style="width:80px" class="num">รวม</th><th style="width:80px">หมายเหตุ</th>
+      </tr></thead>
+      <tbody>${body}
+        <tr style="height:5px"><td colspan="11"></td></tr>
+        <tr class="subtotal-row"><td colspan="5" style="text-align:right">รวมวัสดุ / รวมแรง</td><td class="num" style="color:var(--mat)">฿${fmt(t.mat)}</td><td></td><td class="num" style="color:var(--lbr)">฿${fmt(t.lbr)}</td><td></td><td class="num">฿${fmt(t.sub)}</td><td></td></tr>
+        <tr class="overhead-row"><td colspan="9" style="text-align:right">${contLabel}</td><td class="num">฿${fmt(t.conting)}</td><td></td></tr>
+        <tr class="overhead-row"><td colspan="9" style="text-align:right">${ohLabel}</td><td class="num">฿${fmt(t.oh)}</td><td></td></tr>
+        <tr class="overhead-row"><td colspan="9" style="text-align:right">VAT (<span contenteditable="true" spellcheck="false" style="display:inline-block;min-width:24px;text-align:right;outline:none;font-weight:700" onblur="editRate('vat',this.textContent)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${state.rates.vat}</span>%)</td><td class="num">฿${fmt(t.vat)}</td><td></td></tr>
+        <tr class="total-row"><td colspan="9" style="text-align:right;font-size:.9rem">รวมทั้งสิ้น</td><td class="num" style="font-size:.95rem">฿${fmt(t.grand)}</td><td></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="notes-panel" style="margin:8px 0 0">⚠️ ประมาณการเบื้องต้น แยกค่าวัสดุ-ค่าแรง · ราคาจริงขึ้นกับสภาพหน้างาน ยี่ห้อวัสดุ และค่าแรงในพื้นที่</div>
+  </div>`;
+}
+
+// price search popup (opens external store search)
+const PRICE_STORES=[
+  {name:'ไทวัสดุ',url:q=>`https://www.thaiwatsadu.com/th/search?q=${encodeURIComponent(q)}`,color:'#e30613'},
+  {name:'โฮมโปร',url:q=>`https://www.homepro.co.th/search?q=${encodeURIComponent(q)}`,color:'#f7941e'},
+  {name:'ดูโฮม',url:q=>`https://www.dohome.co.th/th/search?q=${encodeURIComponent(q)}`,color:'#0066b3'},
+];
+function priceKeyword(d){ return d.replace(/\(.*?\)/g,' ').replace(/[•·\-–—]/g,' ').replace(/ค่าแรง.*$/,'').replace(/\s+/g,' ').trim().split(' ').slice(0,4).join(' '); }
+function openPriceSearch(id){
+  const r=state.boq.find(x=>x.id===id); const kw=priceKeyword(r?r.desc:'');
+  const old=document.getElementById('pp'); if(old)old.remove();
+  const ov=document.createElement('div'); ov.id='pp';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  const btns=PRICE_STORES.map(s=>`<a href="${s.url(kw)}" target="_blank" rel="noopener" style="display:flex;justify-content:space-between;padding:12px 16px;border-radius:8px;background:${s.color};color:#fff;text-decoration:none;font-weight:600;font-size:.95rem;margin-bottom:8px"><span>🔍 ค้นใน ${s.name}</span><span>↗</span></a>`).join('');
+  ov.innerHTML=`<div style="background:#fff;border-radius:12px;max-width:400px;width:100%;padding:20px;font-family:'Sarabun',sans-serif">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="color:var(--blue)">ค้นหาราคาวัสดุ</b><button onclick="document.getElementById('pp').remove()" style="border:none;background:#eee;width:28px;height:28px;border-radius:50%;cursor:pointer">✕</button></div>
+    <input id="ppkw" value="${kw.replace(/"/g,'&quot;')}" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;margin-bottom:10px;font-family:'Sarabun',sans-serif">
+    <button onclick="document.querySelectorAll('#ppbtns a').forEach(a=>{const u=a.getAttribute('data-base');a.href=u+encodeURIComponent(document.getElementById('ppkw').value)})" style="width:100%;padding:8px;background:var(--blue);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-bottom:10px">↻ อัปเดตคำค้น</button>
+    <div id="ppbtns">${PRICE_STORES.map(s=>`<a data-base="${s.url('').slice(0,-0)}" href="${s.url(kw)}" target="_blank" rel="noopener" style="display:flex;justify-content:space-between;padding:12px 16px;border-radius:8px;background:${s.color};color:#fff;text-decoration:none;font-weight:600;margin-bottom:8px"><span>🔍 ${s.name}</span><span>↗</span></a>`).join('')}</div>
+    <div style="font-size:.72rem;color:#999;margin-top:8px">💡 เปิดหน้าค้นหาในแท็บใหม่ — นำราคามากรอกในช่อง "วัสดุ/น." เอง</div>
+  </div>`;
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove()});
+  document.body.appendChild(ov);
+}
+
+// ════════════════════════════════════════════════
+//  TAB: DRAWING (SVG diagram per work)
+// ════════════════════════════════════════════════
+function svgEl(tag,attrs={},text=''){ const e=document.createElementNS(NS,tag); for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v); if(text)e.textContent=text; return e; }
+
+function renderDrawing(){
+  const works=activeWorks();
+  if(!works.length){ document.getElementById('drawing-content').innerHTML='<div class="empty-note">ยังไม่ได้เลือกงาน</div>'; return; }
+  let html=`<div class="rpt-wrap"><div style="margin-bottom:8px"><button class="print-btn" onclick="window.print()">🖨️ พิมพ์แบบ</button></div>
+    <div class="rpt-title">แบบก่อสร้าง (Construction Sketch)</div>
+    <div class="rpt-sub">${state.proj.name} · ${HOUSE_TYPES[state.house].name} · ภาพประกอบความเข้าใจ (ไม่ใช่แบบยื่นขออนุญาต)</div>`;
+  works.forEach(w=>{
+    html+=`<div style="border:1px solid #ddd6c8;border-radius:6px;margin-bottom:16px;overflow:hidden">
+      <div style="background:${WORKS[w].color};color:#fff;padding:6px 12px;font-weight:700;font-size:.85rem">${WORKS[w].icon} ${WORKS[w].name}</div>
+      <div style="position:relative;padding:10px"><svg id="dwg-${w}" viewBox="0 0 760 320"></svg></div></div>`;
+  });
+  html+=`</div>`;
+  document.getElementById('drawing-content').innerHTML=html;
+  works.forEach(w=>drawWork(w));
+}
+
+function drawWork(w){
+  const svg=document.getElementById('dwg-'+w); if(!svg)return;
+  const d=state.dims;
+  const arrow=()=>{ const defs=svgEl('defs');
+    ['a','ar'].forEach(id=>{ const m=svgEl('marker',{id:'dw'+id,markerWidth:'7',markerHeight:'7',refX:'3.5',refY:'3.5',orient:id==='ar'?'auto-start-reverse':'auto'}); m.appendChild(svgEl('path',{d:'M0,0 L7,3.5 L0,7 Z',fill:'#16314f'})); defs.appendChild(m); });
+    svg.appendChild(defs); };
+  const T=(x,y,s,a={})=>svg.appendChild(svgEl('text',Object.assign({x,y,'font-family':'Sarabun','font-size':'12','fill':'#20242e'},a),s));
+  const R=(x,y,wd,h,a={})=>svg.appendChild(svgEl('rect',Object.assign({x,y,width:wd,height:h},a)));
+  const L=(x1,y1,x2,y2,a={})=>svg.appendChild(svgEl('line',Object.assign({x1,y1,x2,y2,stroke:'#16314f','stroke-width':'1.5'},a)));
+  const dim=(x1,y1,x2,y2,lab)=>{ const isH=Math.abs(y1-y2)<2; L(x1,y1,x2,y2,{'marker-start':'url(#dwar)','marker-end':'url(#dwa)','stroke-width':'1.2'});
+    if(isH)T((x1+x2)/2,y1-4,lab,{'text-anchor':'middle','font-family':'Share Tech Mono','font-size':'10','fill':'#16314f'});
+    else T(x1+10,(y1+y2)/2,lab,{'font-family':'Share Tech Mono','font-size':'10','fill':'#16314f','transform':`rotate(90,${x1+10},${(y1+y2)/2})`,'text-anchor':'middle'}); };
+  arrow();
+
+  if(w==='garage'){
+    const sc=Math.min(560/Math.max(d.garageW,d.garageL),48); const W=d.garageW*sc,Ln=d.garageL*sc; const ox=140,oy=70;
+    // roof footprint
+    R(ox,oy,W,Ln,{fill:'#dbeaf5',stroke:'#1e6fa0','stroke-width':'2.5','stroke-dasharray':'8,4'});
+    T(ox+W/2,oy+Ln/2-8,'พื้นที่จอดรถ',{'text-anchor':'middle','font-size':'13','font-weight':'600','fill':'#1e6fa0'});
+    T(ox+W/2,oy+Ln/2+10,`${d.garageW}×${d.garageL} ม. = ${fmtQ(d.garageW*d.garageL)} ตร.ม.`,{'text-anchor':'middle','font-size':'10','font-family':'Share Tech Mono','fill':'#1e6fa0'});
+    // posts at corners
+    [[ox,oy],[ox+W,oy],[ox,oy+Ln],[ox+W,oy+Ln]].forEach(([x,y])=>R(x-6,y-6,12,12,{fill:'#16314f'}));
+    // car icon
+    T(ox+W/2,oy+Ln/2+40,'🚗',{'text-anchor':'middle','font-size':'34'});
+    // house wall
+    R(ox-22,oy,16,Ln,{fill:'#cdc6b6',stroke:'#888','stroke-width':'1'}); T(ox-14,oy+Ln/2,'ผนังบ้าน',{'text-anchor':'middle','font-size':'9','fill':'#888','transform':`rotate(90,${ox-14},${oy+Ln/2})`});
+    dim(ox,oy-16,ox+W,oy-16,`${d.garageW} ม.`); dim(ox+W+20,oy,ox+W+20,oy+Ln,`${d.garageL} ม.`);
+    T(620,90,'เสาเหล็ก 4 มุม',{'font-size':'10','fill':'#666'}); R(606,82,10,10,{fill:'#16314f'});
+    T(620,120,'หลังคาเมทัลชีท/โพลีฯ',{'font-size':'10','fill':'#666'});
+  }
+  else if(w==='rear'){
+    const sc=Math.min(380/Math.max(d.rearW,d.rearL),46); const W=d.rearW*sc,Ln=d.rearL*sc,wt=9; const ox=130,oy=70;
+    // existing house
+    R(ox-90,oy,84,Ln,{fill:'#ece7da',stroke:'#999','stroke-width':'1.5'}); T(ox-48,oy+Ln/2,'บ้านเดิม',{'text-anchor':'middle','font-size':'10','fill':'#999'});
+    // extension walls
+    R(ox,oy,W+wt,wt,{fill:'#e5b8af',stroke:'#b5402e','stroke-width':'2'});
+    R(ox+W,oy,wt,Ln,{fill:'#e5b8af',stroke:'#b5402e','stroke-width':'2'});
+    R(ox,oy+Ln,W+wt,wt,{fill:'#e5b8af',stroke:'#b5402e','stroke-width':'2'});
+    R(ox,oy,wt,Ln,{fill:'#e5b8af',stroke:'#b5402e','stroke-width':'2'});
+    R(ox+wt,oy+wt,W-wt,Ln-wt,{fill:'#fbf2f0'});
+    T(ox+W/2,oy+Ln/2-6,'ต่อเติมหลัง',{'text-anchor':'middle','font-size':'12','font-weight':'700','fill':'#b5402e'});
+    T(ox+W/2,oy+Ln/2+12,`${d.rearW}×${d.rearL}×${d.rearH} ม.`,{'text-anchor':'middle','font-size':'10','font-family':'Share Tech Mono','fill':'#b5402e'});
+    // door connect
+    R(ox-6,oy+Ln/2-22,wt+6,44,{fill:'#d4edda'}); T(ox+2,oy+Ln/2,'ประตู',{'text-anchor':'middle','font-size':'7','fill':'#b5402e','transform':`rotate(90,${ox+2},${oy+Ln/2})`});
+    dim(ox,oy-16,ox+W+wt,oy-16,`${d.rearW} ม.`); dim(ox+W+wt+18,oy,ox+W+wt+18,oy+Ln,`${d.rearL} ม.`);
+    T(560,100,'เสาเข็ม + ฐานราก',{'font-size':'10','fill':'#666'});
+    T(560,124,'ผนังก่ออิฐมวลเบา',{'font-size':'10','fill':'#666'});
+    T(560,148,'หลังคาเมทัลชีท',{'font-size':'10','fill':'#666'});
+  }
+  else if(w==='awning'){
+    // section view: wall + awning sloping out
+    const ox=160,wallY=60,wallH=200; const proj=d.awningL*70; const drop=proj*0.25;
+    R(ox-14,wallY,14,wallH,{fill:'#cdc6b6',stroke:'#888','stroke-width':'1.5'}); T(ox-7,wallY+wallH/2,'ผนัง',{'text-anchor':'middle','font-size':'9','fill':'#888','transform':`rotate(90,${ox-7},${wallY+wallH/2})`});
+    // awning sheet
+    svg.appendChild(svgEl('polygon',{points:`${ox},${wallY+30} ${ox+proj},${wallY+30+drop} ${ox+proj},${wallY+40+drop} ${ox},${wallY+40}`,fill:'#f0e0b8',stroke:'#c79a3e','stroke-width':'2'}));
+    // bracket
+    L(ox,wallY+90,ox+proj*0.8,wallY+34+drop*0.8,{stroke:'#16314f','stroke-width':'2'});
+    L(ox,wallY+90,ox,wallY+30,{stroke:'#16314f','stroke-width':'2'});
+    T(ox+proj/2,wallY+18,'แผ่นกันสาด (เมทัลชีท/โพลีฯ)',{'text-anchor':'middle','font-size':'10','fill':'#c79a3e'});
+    dim(ox,wallY+wallH+20,ox+proj,wallY+wallH+20,`ยื่น ${d.awningL} ม.`);
+    T(ox+proj+30,wallY+90,`กว้าง ${d.awningW} ม.`,{'font-size':'11','font-family':'Share Tech Mono','fill':'#16314f'});
+    T(ox+proj+30,wallY+110,`= ${fmtQ(d.awningW*d.awningL)} ตร.ม.`,{'font-size':'10','font-family':'Share Tech Mono','fill':'#666'});
+    T(ox-20,wallY+90,'โครงยึด',{'text-anchor':'end','font-size':'9','fill':'#16314f'});
+  }
+  else if(w==='paintIn'||w==='paintOut'){
+    const A=w==='paintIn'?d.paintInArea:d.paintOutArea; const col=WORKS[w].color;
+    const ox=120,oy=70,W=360,H=180;
+    R(ox,oy,W,H,{fill:w==='paintIn'?'#e8f3ec':'#f0ebf6',stroke:col,'stroke-width':'2'});
+    // roller icon
+    T(ox+W/2,oy+H/2-10,w==='paintIn'?'🎨':'🖌️',{'text-anchor':'middle','font-size':'40'});
+    T(ox+W/2,oy+H/2+28,`พื้นที่ผนัง ${fmtQ(A)} ตร.ม.`,{'text-anchor':'middle','font-size':'13','font-weight':'600','fill':col});
+    T(ox+W/2,oy+H/2+48,'รองพื้น 1 รอบ + สีจริง 2 รอบ',{'text-anchor':'middle','font-size':'10','fill':'#666'});
+    T(ox+W+30,oy+40,w==='paintIn'?'ภายใน':'ภายนอก',{'font-size':'11','font-weight':'700','fill':col});
+    T(ox+W+30,oy+64,w==='paintIn'?'• เช็ดล้างได้':'• กันเชื้อรา/ตะไคร่',{'font-size':'10','fill':'#666'});
+    T(ox+W+30,oy+84,w==='paintIn'?'• กลิ่นน้อย':'• ทนแดด-ฝน',{'font-size':'10','fill':'#666'});
+  }
+  else if(w==='flooring'){
+    const A=d.floorArea2, col=WORKS[w].color;
+    const ftName={tile:'กระเบื้องแกรนิตโต้ 60×60',ceramic:'กระเบื้องเซรามิก',spc:'พื้น SPC คลิกล็อก',laminate:'พื้นลามิเนต'}[d.floorType];
+    const ox=120,oy=66,W=360,H=190;
+    R(ox,oy,W,H,{fill:'#e6f3f3',stroke:col,'stroke-width':'2'});
+    // tile grid pattern
+    if(d.floorType==='tile'||d.floorType==='ceramic'){
+      const step=d.floorType==='tile'?60:38;
+      for(let x=ox;x<=ox+W;x+=step) L(x,oy,x,oy+H,{stroke:col,'stroke-width':'0.8','opacity':'0.4'});
+      for(let y=oy;y<=oy+H;y+=step) L(ox,y,ox+W,y,{stroke:col,'stroke-width':'0.8','opacity':'0.4'});
+    } else {
+      // plank pattern
+      for(let y=oy;y<=oy+H;y+=22){ L(ox,y,ox+W,y,{stroke:col,'stroke-width':'0.8','opacity':'0.4'});
+        const off=((y-oy)/22)%2?60:0; for(let x=ox+off;x<=ox+W;x+=120) L(x,y,x,y+22,{stroke:col,'stroke-width':'0.6','opacity':'0.3'}); }
+    }
+    R(ox,oy,W,H,{fill:'none',stroke:col,'stroke-width':'2'});
+    T(ox+W/2,oy+H/2-6,`${ftName}`,{'text-anchor':'middle','font-size':'12','font-weight':'700','fill':col});
+    T(ox+W/2,oy+H/2+14,`พื้นที่ ${fmtQ(A)} ตร.ม.`,{'text-anchor':'middle','font-size':'12','font-family':'Share Tech Mono','fill':col});
+    T(ox+W+30,oy+30,'ปูพื้นใหม่',{'font-size':'11','font-weight':'700','fill':col});
+    const feats={tile:['• แข็งแรง ทนทาน','• เช็ดทำความสะอาดง่าย','• เหมาะพื้นที่ทั่วไป'],
+      ceramic:['• ราคาประหยัด','• หลายลาย','• เหมาะห้องน้ำ/ครัว'],
+      spc:['• กันน้ำ 100%','• ปูเร็ว ไม่ใช้กาว','• ทนขีดข่วน'],
+      laminate:['• ผิวสัมผัสไม้','• ราคาประหยัด','• ระวังน้ำขัง']}[d.floorType];
+    feats.forEach((f,i)=>T(ox+W+30,oy+54+i*20,f,{'font-size':'10','fill':'#666'}));
+  }
+  else {
+    // Generic info-card diagram for: bathroom, ceiling, partition, fence, doorwin, electric
+    const col=WORKS[w].color, a=workAreas();
+    const ox=120,oy=66,W=380,H=190;
+    R(ox,oy,W,H,{fill:'#f4f2ee',stroke:col,'stroke-width':'2'});
+    T(ox+W/2,oy+62,WORKS[w].icon,{'text-anchor':'middle','font-size':'52'});
+    let spec='',feats=[];
+    if(w==='bathroom'){ const lv={basic:'เบื้องต้น',standard:'มาตรฐาน',premium:'พรีเมียม'}[d.bathLevel];
+      spec=`${d.bathCount} ห้อง · ระดับ${lv}`; feats=['• ระบบกันซึมพื้น-ผนัง','• สุขภัณฑ์ + กระเบื้อง','• ระบบน้ำ + ไฟ + ระบายอากาศ']; }
+    else if(w==='ceiling'){ const ct={gypsum:'ยิปซัมฉาบเรียบ',tbar:'ทีบาร์ 60×60',smartboard:'สมาร์ทบอร์ดกันชื้น'}[d.ceilingType];
+      spec=`${ct} · ${fmtQ(a.ceiling)} ตร.ม.`; feats=['• โครงเคร่าเหล็กชุบสังกะสี','• แผ่นฝ้า + ฉาบรอยต่อ','• ทาสี (ยกเว้นทีบาร์)']; }
+    else if(w==='partition'){ const pt={gypsum:'ยิปซัม 2 หน้า',smartboard:'สมาร์ทบอร์ด',block:'อิฐมวลเบา'}[d.partitionType];
+      spec=`${pt} · ${fmtQ(a.partition)} ตร.ม.`; feats=['• โครงเบา/ก่ออิฐ','• ฉนวนกันเสียง (โครงเบา)','• ทาสี 2 หน้า']; }
+    else if(w==='fence'){ const ft={block:'ก่ออิฐฉาบ',precast:'สำเร็จรูป',metal:'เหล็ก/สแตนเลส'}[d.fenceType];
+      spec=`${ft} · ยาว ${d.fenceLen}ม. สูง ${d.fenceH}ม.`; feats=['• ฐานราก + คานคอดิน','• แผง/ก่อรั้ว','• ประตูรั้ว (ถ้ามี)']; }
+    else if(w==='doorwin'){ const dt={alu:'อะลูมิเนียม',upvc:'UPVC',wood:'ไม้'}[d.doorwinType];
+      spec=`${dt} · ${d.doorwinCount} ชุด`; feats=['• รื้อของเดิม','• ติดตั้งวงกบ + บาน','• ยาแนวกันรั่ว']; }
+    else if(w==='electric'){ spec=`${d.electricPoints} จุด${d.electricPanel?' + เปลี่ยนตู้ไฟ':''}`;
+      feats=['• เดินสาย + ท่อร้อยสาย','• เต้ารับ/สวิตช์/โคมไฟ',d.electricPanel?'• ตู้ Consumer Unit ใหม่':'• ต่อจากตู้เดิม']; }
+    T(ox+W/2,oy+H-44,WORKS[w].name,{'text-anchor':'middle','font-size':'14','font-weight':'700','fill':col});
+    T(ox+W/2,oy+H-24,spec,{'text-anchor':'middle','font-size':'11','font-family':'Share Tech Mono','fill':'#555'});
+    T(ox+W+24,oy+34,'รายละเอียด',{'font-size':'11','font-weight':'700','fill':col});
+    feats.forEach((f,i)=>T(ox+W+24,oy+58+i*22,f,{'font-size':'10','fill':'#666'}));
+  }
+}
+
+// ════════════════════════════════════════════════
+//  PAYMENTS
+// ════════════════════════════════════════════════
+function initPayments(){
+  state.payments=[
+    {name:'มัดจำเริ่มงาน / เตรียมการ',pct:30,desc:'ลงนามสัญญา + เตรียมพื้นที่ + สั่งวัสดุหลัก'},
+    {name:'งานโครงสร้าง/พื้น',pct:30,desc:'งานหลักคืบหน้า 50%'},
+    {name:'งานหลังคา/ผนัง/ระบบ',pct:25,desc:'งานเกือบเสร็จ'},
+    {name:'เก็บงาน + ส่งมอบ',pct:15,desc:'ตรวจรับ + แก้ defect'},
+  ];
+}
+function docHeader(title,no){
+  const c=state.co;
+  return `<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px double var(--blue);padding-bottom:10px;margin-bottom:14px">
+    <div><div style="font-size:1.05rem;font-weight:800;color:var(--blue)">${c.name||'[ ชื่อบริษัท/ร้านผู้รับเหมา ]'}</div>
+      <div style="font-size:.74rem;color:#444;line-height:1.7;margin-top:3px">${c.addr||'[ ที่อยู่ ]'}${c.phone?' · โทร '+c.phone:''}<br>เลขผู้เสียภาษี: ${c.tax||'[ - ]'}</div></div>
+    <div style="text-align:right"><div style="font-size:1.3rem;font-weight:800;letter-spacing:1px">${title}</div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.74rem;color:var(--dim);line-height:1.9;margin-top:4px">เลขที่: ${no}<br>วันที่: ${formatThaiDate(state.proj.date)}</div></div></div>`;
+}
+function sigBlock(roles){
+  return `<div class="sig-block" style="grid-template-columns:repeat(${roles.length},1fr)">`+roles.map(r=>`<div class="sig-box"><div class="sig-line"></div><div class="sig-name">${r.name||'(.............................)'}</div><div class="sig-role">${r.role}</div>${r.sub?`<div class="sig-role">${r.sub}</div>`:''}</div>`).join('')+`</div>`;
+}
+
+// ── QUOTE
+function renderQuote(){
+  if(!activeWorks().length){ document.getElementById('quote-content').innerHTML='<div class="empty-note">ยังไม่ได้เลือกงาน</div>'; return; }
+  const t=boqTotals(), wt=workTotals();
+  let rows=''; activeWorks().forEach((w,i)=>{ rows+=`<tr><td class="num">${i+1}</td><td>${WORKS[w].icon} ${WORKS[w].name}</td><td class="num">฿${fmt(wt[w].tot)}</td></tr>`; });
+  const valid=()=>{ const dt=new Date(state.proj.date); dt.setDate(dt.getDate()+state.rates.quoteValid); return formatThaiDate(dt.toISOString()); };
+  document.getElementById('quote-content').innerHTML=`
+  <div class="rpt-wrap">
+    <div style="margin-bottom:10px"><button class="print-btn" onclick="window.print()">🖨️ พิมพ์ / PDF</button></div>
+    ${docHeader('ใบเสนอราคา','QT-'+state.proj.rev)}
+    <table style="width:100%;font-size:.82rem;margin-bottom:12px">
+      <tr><td style="width:90px;color:var(--dim)">เรียน</td><td><b>${state.proj.owner}</b></td></tr>
+      <tr><td style="color:var(--dim)">โครงการ</td><td>${state.proj.name} (${HOUSE_TYPES[state.house].name})</td></tr>
+      <tr><td style="color:var(--dim);vertical-align:top">สถานที่</td><td>${state.proj.ownerAddr||'[ สถานที่ก่อสร้าง ]'}</td></tr></table>
+    <p style="font-size:.82rem;margin-bottom:8px">บริษัทฯ ขอเสนอราคางานรีโนเวท ${activeWorks().length} รายการ ดังนี้</p>
+    <table class="rpt-table"><thead><tr><th style="width:50px" class="num">ลำดับ</th><th>รายการงาน</th><th style="width:130px" class="num">จำนวนเงิน</th></tr></thead>
+      <tbody>${rows}
+        <tr class="total-row"><td colspan="2" style="text-align:right">รวมค่างาน</td><td class="num">฿${fmt(t.sub)}</td></tr>
+        <tr style="background:#fbf2d8"><td colspan="2" style="text-align:right;font-style:italic">เผื่อ ${t.contingPct.toFixed(t.contMode==='fixed'?1:0)}% + Overhead ${t.ohPct.toFixed(t.ohMode==='fixed'?1:0)}%</td><td class="num">฿${fmt(t.conting+t.oh)}</td></tr>
+        <tr style="background:#fbf2d8"><td colspan="2" style="text-align:right;font-style:italic">VAT ${state.rates.vat}%</td><td class="num">฿${fmt(t.vat)}</td></tr>
+        <tr class="total-row"><td colspan="2" style="text-align:right;font-size:.92rem">ราคารวมทั้งสิ้น</td><td class="num" style="font-size:.95rem">฿${fmt(t.grand)}</td></tr></tbody></table>
+    <div style="background:#e8eef6;border-left:4px solid var(--blue);padding:8px 12px;font-size:.8rem;margin-bottom:6px"><b>฿${fmt(t.grand)} บาท</b> (${bahtText(Math.round(t.grand))})</div>
+    <div style="font-size:.78rem;line-height:1.9;margin-top:8px"><b>เงื่อนไข</b>
+      <ol style="margin-left:20px;margin-top:4px">
+        <li>ยืนราคา ${state.rates.quoteValid} วัน (ถึง ${valid()})</li>
+        <li>ระยะเวลาก่อสร้าง ${state.rates.totalDays} วัน</li>
+        <li>รับประกันผลงาน ${state.rates.warranty} เดือน</li>
+        <li>แบ่งจ่ายเป็นงวดตามความคืบหน้า</li></ol></div>
+    <div style="background:#fbf2d8;border-left:4px solid var(--gold);padding:8px 12px;font-size:.76rem;margin-top:8px;line-height:1.8">
+      <b>⚠️ ไม่รวมในราคา:</b> ค่าขออนุญาต/วิศวกรเซ็นแบบ · ค่าไฟ-น้ำระหว่างก่อสร้าง · งานฐานรากพิเศษกรณีดินผิดปกติ · เฟอร์นิเจอร์/เครื่องใช้ไฟฟ้า · งานเพิ่มนอกเหนือแบบ (คิด VO)</div>
+    ${sigBlock([{name:state.co.contractor,role:'ผู้เสนอราคา',sub:state.co.name},{name:state.proj.owner,role:'ผู้อนุมัติ',sub:'วันที่ ...../...../.....'}])}
+  </div>`;
+}
+
+// ── CONTRACT
+function renderContract(){
+  if(!activeWorks().length){ document.getElementById('contract-content').innerHTML='<div class="empty-note">ยังไม่ได้เลือกงาน</div>'; return; }
+  const t=boqTotals(),r=state.rates;
+  let payText=''; (state.payments||[]).forEach((p,i)=>{ payText+=`<tr><td class="num">${i+1}</td><td>${p.name}</td><td class="num">${p.pct}%</td><td class="num">฿${fmt(t.grand*p.pct/100)}</td></tr>`; });
+  const workList=activeWorks().map(w=>WORKS[w].name).join(', ');
+  document.getElementById('contract-content').innerHTML=`
+  <div class="rpt-wrap" style="font-size:.82rem;line-height:1.7">
+    <div style="margin-bottom:10px"><button class="print-btn" onclick="window.print()">🖨️ พิมพ์ / PDF</button></div>
+    <div style="text-align:center;margin-bottom:14px"><div style="font-size:1.3rem;font-weight:800;color:var(--blue)">สัญญาจ้างเหมาก่อสร้าง</div>
+      <div style="font-size:.76rem;color:var(--dim)">เลขที่ CT-${r.rev||state.proj.rev} · วันที่ ${formatThaiDate(state.proj.date)}</div></div>
+    <p>สัญญาทำขึ้นระหว่าง <b>${state.proj.owner}</b> ที่อยู่ ${state.proj.ownerAddr||'[ ที่อยู่ ]'} ("<b>ผู้ว่าจ้าง</b>") ฝ่ายหนึ่ง</p>
+    <p>กับ <b>${state.co.name||state.co.contractor||'[ ผู้รับเหมา ]'}</b> ที่อยู่ ${state.co.addr||'[ ที่อยู่ ]'} เลขผู้เสียภาษี ${state.co.tax||'[ - ]'} ("<b>ผู้รับจ้าง</b>") อีกฝ่ายหนึ่ง</p>
+    <p><b>ข้อ 1. ขอบเขตงาน</b><br>ผู้รับจ้างตกลงทำงานรีโนเวท <b>${workList}</b> ของ ${HOUSE_TYPES[state.house].name} ณ ${state.proj.ownerAddr||'[ สถานที่ ]'} ตามแบบและ BOQ แนบท้ายสัญญา</p>
+    <p><b>ข้อ 2. ค่าจ้างและการชำระเงิน</b><br>ค่าจ้างรวม <b>฿${fmt(t.grand)} บาท</b> (${bahtText(Math.round(t.grand))}) รวม VAT แล้ว แบ่งจ่ายเป็นงวดดังนี้</p>
+    <table class="rpt-table" style="margin:6px 0"><thead><tr><th style="width:40px" class="num">งวด</th><th>เงื่อนไข</th><th style="width:50px" class="num">%</th><th style="width:110px" class="num">จำนวนเงิน</th></tr></thead><tbody>${payText}</tbody></table>
+    <p><b>ข้อ 3. ระยะเวลา</b><br>เริ่มงานภายใน 7 วันหลังรับเงินงวดแรก แล้วเสร็จภายใน <b>${r.totalDays} วัน</b></p>
+    <p><b>ข้อ 4. ค่าปรับล่าช้า</b><br>หากล่าช้า ปรับวันละ <b>฿${fmt(r.penalty)} บาท</b></p>
+    <p><b>ข้อ 5. เงินประกันผลงาน</b><br>หักร้อยละ <b>${r.retention}%</b> ของแต่ละงวด คืนเมื่อพ้นประกัน</p>
+    <p><b>ข้อ 6. รับประกันผลงาน</b><br>รับประกัน <b>${r.warranty} เดือน</b> นับจากส่งมอบ</p>
+    <p><b>ข้อ 7. งานเพิ่ม-ลด</b><br>ต้องตกลงราคาและทำเป็นลายลักษณ์อักษรก่อนทำ</p>
+    <p><b>ข้อ 8. งานไม่รวมในสัญญา</b><br>ค่าขออนุญาต, วิศวกรเซ็นแบบ, ค่าไฟ-น้ำระหว่างก่อสร้าง, งานฐานรากพิเศษ, เฟอร์นิเจอร์</p>
+    <p style="margin-top:12px">สัญญาทำสองฉบับข้อความตรงกัน ทั้งสองฝ่ายเข้าใจดีจึงลงลายมือชื่อไว้</p>
+    ${sigBlock([{name:state.co.contractor,role:'ผู้รับจ้าง',sub:state.co.name},{name:state.proj.owner,role:'ผู้ว่าจ้าง'}])}
+    ${sigBlock([{name:'',role:'พยาน'},{name:'',role:'พยาน'}])}
+    <div class="notes-panel" style="margin:14px 0 0">⚖️ แบบร่างสัญญาเพื่อความสะดวก ควรปรึกษานักกฎหมายก่อนใช้กับงานมูลค่าสูง และแนบ BOQ+แบบท้ายสัญญา</div>
+  </div>`;
+}
+
+// ── INVOICE
+let invMs=0;
+function setInvMs(i){ invMs=+i; renderInvoice(); }
+function renderInvoice(){
+  if(!activeWorks().length){ document.getElementById('invoice-content').innerHTML='<div class="empty-note">ยังไม่ได้เลือกงาน</div>'; return; }
+  const t=boqTotals(),r=state.rates; if(!state.payments)initPayments();
+  if(invMs>=state.payments.length)invMs=0;
+  const ms=state.payments[invMs]; const amt=t.grand*ms.pct/100; const ret=amt*r.retention/100; const net=amt-ret;
+  const opts=state.payments.map((p,i)=>`<option value="${i}" ${i===invMs?'selected':''}>งวด ${i+1} (${p.pct}%)</option>`).join('');
+  document.getElementById('invoice-content').innerHTML=`
+  <div class="rpt-wrap">
+    <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="print-btn" onclick="window.print()">🖨️ พิมพ์ / PDF</button>
+      <span style="font-size:.78rem">เลือกงวด: <select onchange="setInvMs(this.value)" style="padding:4px 8px;border:1px solid #ccc;border-radius:4px">${opts}</select></span></div>
+    ${docHeader('ใบวางบิล/เบิกงวด','INV-'+(invMs+1))}
+    <table style="width:100%;font-size:.82rem;margin-bottom:12px">
+      <tr><td style="width:100px;color:var(--dim)">เรียกเก็บจาก</td><td><b>${state.proj.owner}</b></td></tr>
+      <tr><td style="color:var(--dim)">โครงการ</td><td>${state.proj.name}</td></tr>
+      <tr><td style="color:var(--dim)">งวดที่</td><td><b>${invMs+1}</b> — ${ms.name}</td></tr></table>
+    <table class="rpt-table"><thead><tr><th>รายการ</th><th style="width:140px" class="num">จำนวนเงิน</th></tr></thead><tbody>
+      <tr><td>มูลค่างานงวด ${invMs+1} (${ms.pct}% ของ ฿${fmt(t.grand)})</td><td class="num">฿${fmt(amt)}</td></tr>
+      <tr style="color:var(--red)"><td>หัก เงินประกันผลงาน (${r.retention}%)</td><td class="num">-฿${fmt(ret)}</td></tr>
+      <tr class="total-row"><td style="text-align:right">ยอดเบิกสุทธิ</td><td class="num">฿${fmt(net)}</td></tr></tbody></table>
+    <div style="background:#e8eef6;border-left:4px solid var(--blue);padding:8px 12px;font-size:.82rem"><b>ยอดชำระ ฿${fmt(net)} บาท</b> (${bahtText(Math.round(net))})</div>
+    <div style="font-size:.76rem;color:var(--dim);margin-top:8px">การชำระ: โอนเข้าบัญชี ............... ธนาคาร ......... · กรุณาชำระภายใน 7 วัน</div>
+    ${sigBlock([{name:state.co.contractor,role:'ผู้วางบิล'},{name:'',role:'ผู้อนุมัติจ่าย'}])}
+  </div>`;
+}
+
+// ════════════════════════════════════════════════
+//  SAVE / LOAD / EXPORT
+// ════════════════════════════════════════════════
+function saveProject(){
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=(state.proj.name||'renovate').replace(/\s+/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+  ioStatus('✓ บันทึกแล้ว');
+}
+function loadProject(ev){
+  const f=ev.target.files[0]; if(!f)return; const rd=new FileReader();
+  rd.onload=e=>{ try{ const d=JSON.parse(e.target.result); Object.assign(state,d); renderApp(); ioStatus('✓ เปิดไฟล์สำเร็จ'); }catch(err){ alert('ไฟล์ไม่ถูกต้อง: '+err.message); } };
+  rd.readAsText(f);
+}
+function exportCSV(){
+  if(!state.boq){ alert('ยังไม่มี BOQ'); return; }
+  const t=boqTotals(); let csv='\uFEFF';
+  csv+='ที่,รายการ,งาน,จำนวน,หน่วย,วัสดุ/น.,รวมวัสดุ,แรง/น.,รวมแรง,รวม,หมายเหตุ\n';
+  state.boq.forEach(r=>{ if(r.isSec)csv+=`"${r.label}",,,,,,,,,,\n`;
+    else{ const m=r.qty*(+r.mat),l=r.qty*(+r.labor); csv+=`"${r.no}","${r.desc}","${WORKS[r.workKey].name}",${r.qty},"${r.unit}",${r.mat},${m},${r.labor},${l},${m+l},"${r.note||''}"\n`; }});
+  csv+=`,,,,,,${Math.round(t.mat)},,${Math.round(t.lbr)},${Math.round(t.sub)},รวมก่อน OH/VAT\n`;
+  csv+=`,,,,,,,,,${Math.round(t.grand)},รวมทั้งสิ้น\n`;
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='BOQ_'+(state.proj.name||'renovate').replace(/\s+/g,'_')+'.csv'; a.click();
+  ioStatus('✓ Export CSV แล้ว');
+}
+
+// ════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════
+renderApp();
+console.log('renovate estimator ready');
+</script>
+</body>
+</html>
